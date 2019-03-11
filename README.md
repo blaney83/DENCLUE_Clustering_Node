@@ -1,2 +1,2 @@
 # DENCLUE_Clustering_Node
-Clusters data provided by a KNIME data table using the DENCLUE algorithm and produces a table containing cluster memberships for data points.
+Clusters data using the DENCLUE algorithm. This density-based method used Gaussian distribution and locates local maxima using hill-climbing. Data is pre-processed into grid cells (using a variation of the OptiGrid approach) and the summation of maxima is restricted to neighboring cells keep runtime low. For this reason, the DENCLUE method is faster than DBScan and OPTICS algorithms.
