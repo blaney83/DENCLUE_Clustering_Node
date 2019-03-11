@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DENCLUECluster-Node extension for KNIME Workbench
+Bundle-SymbolicName: io.github.blaney83.dencluecluster; singleton:=true
+Bundle-Version: 1.0.0
+Bundle-ClassPath: dencluecluster.jar
+Bundle-Activator: io.github.blaney83.dencluecluster.DENCLUEClusterNodePlugin
+Bundle-Vendor: Benjamin Laney
+Require-Bundle: org.eclipse.core.runtime,
+ org.knime.workbench.core,
+ org.knime.workbench.repository,
+ org.knime.base
+Bundle-ActivationPolicy: lazy
+Export-Package: io.github.blaney83.dencluecluster
+
