@@ -16,21 +16,17 @@ import org.knime.core.node.defaultnodesettings.SettingsModelIntegerBounded;
  * @author Benjamin Laney
  */
 public class DENCLUEClusterNodeDialog extends DefaultNodeSettingsPane {
-
-    /**
-     * New pane for configuring DENCLUECluster node dialog.
-     * This is just a suggestion to demonstrate possible default dialog
-     * components.
-     */
+	
+	
+	// only two parameters needed (unless optional "E"_c)
+	
+	// 1) "E"- minimum density
+	
+	// 2) "litte sigma"- influence factor 
+	
     protected DENCLUEClusterNodeDialog() {
         super();
-        
-        addDialogComponent(new DialogComponentNumber(
-                new SettingsModelIntegerBounded(
-                    DENCLUEClusterNodeModel.CFGKEY_COUNT,
-                    DENCLUEClusterNodeModel.DEFAULT_COUNT,
-                    Integer.MIN_VALUE, Integer.MAX_VALUE),
-                    "Counter:", /*step*/ 1, /*componentwidth*/ 5));
+
                     
     }
 }
