@@ -47,7 +47,27 @@ public class DENCLUEClusterNodeModel extends NodeModel {
     @Override
     protected BufferedDataTable[] execute(final BufferedDataTable[] inData,
             final ExecutionContext exec) throws Exception {
-        
+    	
+    	// Step 1
+    	
+    	// Turn all rows into feature vectors
+    	
+    	// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers at feature vectors
+    	//											n-number of members
+    	//											nSum- linear sum of feature vectors
+    	
+    	// For each Cp cubes, if(Csp member)=>For each Csp
+    	//										if(d(c_curr, c_iter) <= 4(little sigma))
+    	//												c_curr has c_iter as neighbor
+        //	NOTE: B+ Tree structure needed
+    	
+    	// Step 2
+    	
+    	//gradient hill-climbing, localalized density functions etc., cluster assignments
+    	
+    	// Step 3 
+    	
+    	// for x*, create model and export at out-port 2
     }
 
     @Override
@@ -58,7 +78,16 @@ public class DENCLUEClusterNodeModel extends NodeModel {
     @Override
     protected DataTableSpec[] configure(final DataTableSpec[] inSpecs)
             throws InvalidSettingsException {
-
+    	
+    	//Validate Double compatibilit
+    	
+    	//determine min-max for all fields
+    	
+    	//configure "Cluster" column w/ factory
+    	
+    	//return new data table with cluster
+    	
+    	//probably return specs/model table specs
 
         return new DataTableSpec[]{null};
     }
