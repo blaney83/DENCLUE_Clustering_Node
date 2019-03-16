@@ -2,7 +2,9 @@ package io.github.blaney83.dencluecluster;
 
 import org.knime.core.node.defaultnodesettings.DefaultNodeSettingsPane;
 import org.knime.core.node.defaultnodesettings.DialogComponentNumber;
-import org.knime.core.node.defaultnodesettings.SettingsModelIntegerBounded;
+import org.knime.core.node.defaultnodesettings.SettingsModelDoubleBounded;
+
+
 
 /**
  * <code>NodeDialog</code> for the "DENCLUECluster" Node.
@@ -24,10 +26,21 @@ public class DENCLUEClusterNodeDialog extends DefaultNodeSettingsPane {
 	
 	// 2) "litte sigma"- influence factor 
 	
+	// 
+	
     protected DENCLUEClusterNodeDialog() {
         super();
-
-                    
+        
+		
+		addDialogComponent(new DialogComponentNumber(
+				new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_SIGMA_VALUE, DENCLUEClusterNodeModel.DEFAULT_SIGMA_VALUE, 0, Double.MAX_VALUE), 
+				"Select a \\&#x3C3; (point influence factor)", .03
+		));
+		
+		addDialogComponent(new DialogComponentNumber(
+				new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_XI_VALUE, DENCLUEClusterNodeModel.DEFAULT_XI_VALUE, 0, Double.MAX_VALUE), 
+				"Select a \\&#x3BE; (min density level for density-attractor to be significant)", .03
+		));                    
     }
 }
 
