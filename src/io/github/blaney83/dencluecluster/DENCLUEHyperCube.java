@@ -16,7 +16,7 @@ public class DENCLUEHyperCube {
 
 	private int m_numFeatureVectors = 0;
 
-	private List<DENCLUEHyperCube> m_neighbors;
+	private List<int[]> m_neighbors;
 
 	private boolean m_isNoise;
 
@@ -34,15 +34,12 @@ public class DENCLUEHyperCube {
 		System.arraycopy(featureVector, 0, m_linearSum, 0, m_linearSum.length);
 		m_numFeatureVectors++;
 		m_isNoise = true;
+		m_neighbors = new ArrayList<int[]>();
 	}
 
 	public boolean addMember(final RowKey rowKey, final double[] featureVector) {
-		m_memberRows.add(rowKey);
-		for (int i = 0; i < m_linearSum.length; i++) {
-			m_linearSum[i] += featureVector[i];
-		}
-		m_numFeatureVectors++;
-
+		addMember(rowKey);
+		updateLinearSum(featureVector);
 		// as points are added, as the points exceed a certain threshhold,
 		// then return the key of this cube to be stored in a highly populated key[]
 		// and change the isNoise to false
@@ -55,11 +52,20 @@ public class DENCLUEHyperCube {
 			return false;
 		}
 	}
+	
+	public void addMember(final RowKey rowKey) {
+		m_memberRows.add(rowKey);
+		m_numFeatureVectors++;
+	}
+	
+	public void updateLinearSum(final double[] otherLinearSum) {
+		for (int i = 0; i < m_linearSum.length; i++) {
+			m_linearSum[i] += otherLinearSum[i];
+		}
+	}
 
 	public boolean isNeighbor(final DENCLUEHyperCube otherCube) {
 		int[] otherKey = otherCube.getCubeKey();
-		int currSum = 0;
-		int otherSum = 0;
 		int diffSum = 0;
 		for (int i = 0; i < otherKey.length; i++) {
 			int absDiff = Math.abs(otherKey[i] - m_cubeKey[i]);
@@ -105,19 +111,53 @@ public class DENCLUEHyperCube {
 		}
 		return m_meanVector;
 	}
+	
+	protected void addNeighbor(final DENCLUEHyperCube mergingCube) {
+		this.updateLinearSum(mergingCube.getLinearSum());
+		for(RowKey joiningKey : mergingCube.getMemberRows()) {
+			this.addMember(joiningKey);
+		}
+		this.findMean();
+	}
+
+
+
+
+
+	protected int[] getCubeKey() {
+		return this.m_cubeKey;
+	}
+	
+	protected double[] getLinearSum() {
+		return this.m_linearSum;
+	}
+	
+	protected ArrayList<RowKey> getMemberRows(){
+		return this.m_memberRows;
+	}
+	
+	protected List<int[]> getNeighborCells(){
+		return this.m_neighbors;
+	}
+	
+	// TODO
+	
+	//override equals and hashcode
+	
+	// implement highly populated check in addMember(arg1, arg2)
+	
+	// LIKELY NOT needed unless improvement on performance
 
 	// additional constructor (takes two cubes, makes one cube)
-
+	
+	// method combine cubes
+	
+	// VERY LIKELY NOT needed
+	
 	// method find neighbors
 	// search b tree for all cube key +/- 1
 	// if neighbor != null, run check neighbor
 	// if neighbor distance < 4sigma, then set as neighbor
 	// else remove as neighbor
 	// then update neighbor cube to prevent redundant searches
-
-	// method combine cubes
-
-	protected int[] getCubeKey() {
-		return this.m_cubeKey;
-	}
 }

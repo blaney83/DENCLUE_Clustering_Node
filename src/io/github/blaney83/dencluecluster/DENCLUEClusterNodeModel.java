@@ -82,7 +82,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		BufferedDataTable dataTable = inData[IN_PORT];
 		// Step 1
 
-		// Turn all rows into feature vectors
+		// Turn all rows into feature vectors (postponed/not needed at this time)
 
 		// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers
 		// at feature vectors
@@ -93,7 +93,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		Map<Integer, double[][]> m_hyperCubeBoundaries = new LinkedHashMap<Integer, double[][]>();
 
 		int indexCount = 0;
-		//potentially move this index creation to the configure method
+		// potentially move this index creation to the configure method
 		for (Map.Entry<Integer, DataColumnDomain> entry : m_columnDomains.entrySet()) {
 
 			double colLowerBound = ((DoubleCell) entry.getValue().getLowerBound()).getDoubleValue();
@@ -115,119 +115,141 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 				}
 				currentLowBound += (2 * m_sigmaValue.getDoubleValue());
 			}
-			
+
 			m_hyperCubeBoundaries.put(entry.getKey(), m_columnBoundaries);
 			indexCount++;
 		}
-		//choosing the "order" of the b+ tree using the total records/ size of key in Bytes - 1
+		// choosing the "order" of the b+ tree using the total records/ size of key in
+		// Bytes - 1
 		// may need further optimization later on
-		int branchingFactor = (int)((dataTable.size())/((m_hyperCubeBoundaries.size() * 4) - 1));
-		
+		int branchingFactor = (int) ((dataTable.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
+
 		// STORE CUBES OR KEYS (CHOOSE LATER BASED ON PERFORMANCE
-		//x subset of allCubes such that x has no set membership with denseCubes; x = sparsely populated cubes
-		//highly populated cube keys
+		// x subset of allCubes such that x has no set membership with denseCubes; x =
+		// sparsely populated cubes
+		// highly populated cube keys
 		ArrayList<int[]> denseCubeKeys = new ArrayList<int[]>();
-		//all populated cube keys
+		// all populated cube keys
 		ArrayList<int[]> allCubeKeys = new ArrayList<int[]>();
-		//highly populated cubes
+		// highly populated cubes
 		ArrayList<DENCLUEHyperCube> denseCubes = new ArrayList<DENCLUEHyperCube>();
-		//all populated cubes
+		// all populated cubes
 		ArrayList<DENCLUEHyperCube> allCubes = new ArrayList<DENCLUEHyperCube>();
-		
-		DENCLUEBPlusTree<int[], DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(branchingFactor);
-		//potentially expand to multi-threaded index searching for row feature vectors
-		//also, explore bulk loading for HyperCubes into B+ tree
-		for(DataRow row: dataTable) {
+
+		DENCLUEBPlusTree<int[], DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(
+				branchingFactor);
+		// potentially expand to multi-threaded index searching for row feature vectors
+		// also, explore bulk loading for HyperCubes into B+ tree
+		for (DataRow row : dataTable) {
 			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
 			double[] featureVector = new double[m_hyperCubeBoundaries.size()];
 			int count = 0;
-			for(Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
+			for (Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
 				double rowColVal = ((DoubleCell) row.getCell(entry.getKey())).getDoubleValue();
 				featureVector[count] = rowColVal;
-				//binary search
-			    int lowInd = 0;
-			    int highInd = entry.getValue().length;
+				// binary search
+				int lowInd = 0;
+				int highInd = entry.getValue().length;
 
-			    while(lowInd <= highInd){
+				while (lowInd <= highInd) {
 
-			        int middleInd = (highInd + lowInd) / 2;
+					int middleInd = (highInd + lowInd) / 2;
 
-			        if(entry.getValue()[middleInd][0] > rowColVal){
-			            highInd = middleInd;
-			        }else if(entry.getValue()[middleInd][1] <= rowColVal){
-			            lowInd = middleInd - 1;
-			        }else{
-			            indexedKey[count] = middleInd;
-			        }
-			    }
-			    count ++;
+					if (entry.getValue()[middleInd][0] > rowColVal) {
+						highInd = middleInd;
+					} else if (entry.getValue()[middleInd][1] <= rowColVal) {
+						lowInd = middleInd - 1;
+					} else {
+						indexedKey[count] = middleInd;
+					}
+				}
+				count++;
 			}
 			DENCLUEHyperCube rowMasterCube = bTree.search(indexedKey);
-			if(rowMasterCube != null) {
+			if (rowMasterCube != null) {
 				boolean isHighlyPopulated = rowMasterCube.addMember(row.getKey(), featureVector);
-				if(isHighlyPopulated) {
+				if (isHighlyPopulated) {
 					denseCubeKeys.add(indexedKey);
 					denseCubes.add(rowMasterCube);
 				}
-			}else {
+			} else {
 				rowMasterCube = new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector);
 				bTree.insert(indexedKey, rowMasterCube);
 				allCubeKeys.add(indexedKey);
 				allCubes.add(rowMasterCube);
 			}
-		}	
-		
-		if(denseCubes.size() < 1) {
-			throw new ExecutionException("The parameters used in your search classified all data as noise. Please re-evaluate your parameter choices and "
-					+ "re-execute this node.");
 		}
-		
-		//all populated cubes
-		ArrayList<DENCLUEHyperCube> megaCubes = new ArrayList<DENCLUEHyperCube>();
-		
-		for(DENCLUEHyperCube cube: denseCubes) {
-			for(DENCLUEHyperCube sparseCube: allCubes) {
-				if(cube.isNeighbor(sparseCube)) {
-					if(cube.isConnected(sparseCube)) {
-						megaCubes.add(new DENCLUEHyperCube(cube, sparseCube));
-						//maybe remove cube from denseCubes and add new megaCube...
+
+		if (denseCubes.size() < 1) {
+			throw new ExecutionException(
+					"The parameters used in your search classified all data as noise. Please re-evaluate your parameter choices and "
+							+ "re-execute this node.");
+		}
+
+		//Complexity Csp * Cp; Csp << Cp
+		for (DENCLUEHyperCube cube : denseCubes) {
+			for (DENCLUEHyperCube sparseCube : allCubes) {
+				if (!cube.equals(sparseCube)) {
+					if (cube.isNeighbor(sparseCube)) {
+						if (cube.isConnected(sparseCube, m_sigmaValue.getDoubleValue())) {
+							cube.addNeighbor(sparseCube);
+						}
 					}
 				}
 			}
 		}
-	//for denseCubes
-		//if indexedKey1 != indexedKey2 -1 (could implement a check neighbors method)
-		// not neighbors
-		//else
-		// run d(m1,m2)<= 4simga
-			//if true
-				//combine cubes, expand dimensions
-			//else
-				//not neighbors
-		
 	
-	//possibly create class IndexedKey implementing Comparable to check for matches to the key
-	// the first .equals check could be if sum1 != sum2 return false to speed evaluation time
-	// then for each int in both int[]1 and int[]2 stop evaluation at first mis-match
-	// this could extend the ability of the node to handle dimensionality > 20 as in higher
-	// dimensions the joined integer value of indicies would exceed Integer.MAX
+		//this new btree will hold all clusters and old btree after loop will be noise cluster holding only sparse noise cubes
+		int clusterFactor = (int) ((denseCubes.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
+		DENCLUEBPlusTree<int[], DENCLUEHyperCube> clusterTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(
+				clusterFactor);
 		
+		//consolidating cubes based on their neighbors. Deleting old cubes as they are merged and checking for partially merged
+		// super-hyper cubes
+		for (DENCLUEHyperCube cube : denseCubes) {
+			for(int[] indexKey : cube.getNeighborCells()) {
+				DENCLUEHyperCube mergingCube = bTree.search(indexKey);
+				DENCLUEHyperCube potentialSuperCube = clusterTree.search(indexKey);
+				if(mergingCube != null) {
+					cube.addNeighbor(mergingCube);
+					bTree.delete(indexKey);
+				}
+				if(potentialSuperCube != null) {
+					cube.addNeighbor(potentialSuperCube);
+					clusterTree.delete(indexKey);
+				}
+			}
+			bTree.delete(cube.getCubeKey());
+			clusterTree.insert(cube.getCubeKey(), cube);
+		}
+		
+		// in theory at this point, we have merged supercubes and sporadic noise cubes in two separate b+ search trees and
+		// part 1 is complete...
 
-	// For each Cp cubes, if(Csp member)=>For each Csp
-	// if(d(c_curr, c_iter) <= 4(little sigma))
-	// c_curr has c_iter as neighbor
-	// Csp member = Csp member of Cp where numPoints >= min numPoints at defined by
-	// ("E" min points per d-dimensional cube)
-	// NOTE: B+ Tree structure needed
+		// TODO
+		
+		// possibly create class IndexedKey implementing Comparable to check for matches
+		// to the key
+		// the first .equals check could be if sum1 != sum2 return false to speed
+		// evaluation time
+		// then for each int in both int[]1 and int[]2 stop evaluation at first
+		// mis-match
+		// this could extend the ability of the node to handle dimensionality > 20 as in
+		// higher
+		// dimensions the joined integer value of indicies would exceed Integer.MAX
+		
+		// combine iterations where possible to improve performance
+		
+		// j-unit tests for part 1
 
-	// Step 2
+		// Step 2
 
-	// gradient hill-climbing, localalized density functions etc., cluster
-	// assignments
+		// gradient hill-climbing, localalized density functions etc., cluster
+		// assignments
 
-	// Step 3
+		// Step 3
 
-	// for x*, create model and export at out-port 2
+		// for x*, create model and export at out-port 2
 	}
 
 	@Override
