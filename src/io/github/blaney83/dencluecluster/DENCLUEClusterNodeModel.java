@@ -78,10 +78,17 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			throws Exception {
 
 		BufferedDataTable dataTable = inData[IN_PORT];
+		// Step 1
+
+		// Turn all rows into feature vectors
+
+		// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers
+		// at feature vectors
+		// n-number of members
+		// nSum- linear sum of feature vectors
 		double[] hyperCubeDimensions = new double[m_columnDomains.size()];
 		double totalHyperCubes = 1;
 		Map<Integer, double[][]> m_hyperCubeBoundaries = new LinkedHashMap<Integer, double[][]>();
-
 
 		int indexCount = 0;
 
@@ -114,6 +121,9 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// may need further optimization later on
 		int branchingFactor = (int)((dataTable.size())/((m_hyperCubeBoundaries.size() * 4) - 1));
 		
+		//highly populated cube keys
+		ArrayList<int[]> denseCubes = new ArrayList<int[]>();
+		
 		BPlusTree<int[], DENCLUEHyperCube> bTree = new BPlusTree<int[], DENCLUEHyperCube>(branchingFactor);
 		//potentially expand to multi-threaded index searching for row feature vectors
 		//also, explore bulk loading for HyperCubes into B+ tree
@@ -144,34 +154,31 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			}
 			DENCLUEHyperCube rowMasterCube = bTree.search(indexedKey);
 			if(rowMasterCube != null) {
-				rowMasterCube.addMember(row.getKey(), featureVector);
+				boolean isHighlyPopulated = rowMasterCube.addMember(row.getKey(), featureVector);
+				if(isHighlyPopulated) {
+					denseCubes.add(indexedKey);
+				}
 			}else {
 				bTree.insert(indexedKey, new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector));
 			}
-		}
+		}	
+	//for denseCubes
+		//if indexedKey1 != indexedKey2 -1 (could implement a check neighbors method)
+		// not neighbors
+		//else
+		// run d(m1,m2)<= 4simga
+			//if true
+				//combine cubes, expand dimensions
+			//else
+				//not neighbors
 		
-		
-		// ex hyperCubeDimensions [25, 25, 25]
-		// for for(int j = 0; j < hyperCubeDimensions[i]; j ++)
-		// int current x val = columnLowerBounds [i]
-		// while (xval < columnUpperBounds[i])
-		// if(i = hyperCubeDimenstions.length -1) (if this is the last column, then new
-		// hyper cube with current values (x-min, y-min, z-min) and
-		// (x-min + 2 sigma, y-min + 2 sigma, z-min + 2 sigma) as dimensions. Add cube
-		// to array with label 1, 1, 1, then 1, 1, 2, then 1, 1, 3
-		// then 1, 2, 1, then, 1,2, 2, then, 1,2 3, then 1,3,1 then, 1,3,2, then 1,3,3,
-		// then, 2,1,1, then 2,1,2, then 2,1,3, then 2,2,1, 2,2,2, etc.
-
 	
-
-	// Step 1
-
-	// Turn all rows into feature vectors
-
-	// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers
-	// at feature vectors
-	// n-number of members
-	// nSum- linear sum of feature vectors
+	//possibly create class IndexedKey implementing Comparable to check for matches to the key
+	// the first .equals check could be if sum1 != sum2 return false to speed evaluation time
+	// then for each int in both int[]1 and int[]2 stop evaluation at first mis-match
+	// this could extend the ability of the node to handle dimensionality > 20 as in higher
+	// dimensions the joined integer value of indicies would exceed Integer.MAX
+		
 
 	// For each Cp cubes, if(Csp member)=>For each Csp
 	// if(d(c_curr, c_iter) <= 4(little sigma))
@@ -188,16 +195,6 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 	// Step 3
 
 	// for x*, create model and export at out-port 2
-	}
-
-	private void processColumn(final int dimensionLength, final double lowerBound, final double upperBound) {
-
-		for (int j = 0; j < dimensionLength; j++) {
-			if (lowerBound < upperBound) {
-
-			}
-		}
-
 	}
 
 	@Override

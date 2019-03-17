@@ -32,14 +32,28 @@ public class DENCLUEHyperCube {
 		m_linearSum = new double[featureVector.length];
 		System.arraycopy(featureVector, 0, m_linearSum, 0, m_linearSum.length);
 		m_numFeatureVectors ++;
+		m_isNoise = true;
 	}
 	
-	public void addMember(final RowKey rowKey, final double[] featureVector) {
+	public boolean addMember(final RowKey rowKey, final double[] featureVector) {
 		m_memberRows.add(rowKey);
 		for(int i = 0; i < m_linearSum.length; i ++) {
 			m_linearSum[i] += featureVector[i];
 		}
 		m_numFeatureVectors ++;
+		
+		//as points are added, as the points exceed a certain threshhold,
+		// then return the key of this cube to be stored in a highly populated key[]
+		// and change the isNoise to false
+		//temp value
+		boolean highlyPopulated = true;
+		
+		if(highlyPopulated) {
+			return true;
+		}else {
+			return false;
+		}
+
 	}
 	
 	//method find neighbors
