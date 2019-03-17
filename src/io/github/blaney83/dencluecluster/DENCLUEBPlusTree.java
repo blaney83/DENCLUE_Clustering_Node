@@ -38,7 +38,7 @@ import java.util.Queue;
  */
 
 
-public class BPlusTree<K extends Comparable<? super K>, V> {
+public class DENCLUEBPlusTree<K extends Comparable<? super K>, V> {
 
 	public static enum RangePolicy {
 		EXCLUSIVE, INCLUSIVE
@@ -60,11 +60,11 @@ public class BPlusTree<K extends Comparable<? super K>, V> {
 	 */
 	private Node root;
 
-	public BPlusTree() {
+	public DENCLUEBPlusTree() {
 		this(DEFAULT_BRANCHING_FACTOR);
 	}
 
-	public BPlusTree(int branchingFactor) {
+	public DENCLUEBPlusTree(int branchingFactor) {
 		if (branchingFactor <= 2)
 			throw new IllegalArgumentException("Illegal branching factor: "
 					+ branchingFactor);
@@ -152,7 +152,7 @@ public class BPlusTree<K extends Comparable<? super K>, V> {
 					sb.append(node.toString());
 					if (it.hasNext())
 						sb.append(", ");
-					if (node instanceof BPlusTree.InternalNode)
+					if (node instanceof DENCLUEBPlusTree.InternalNode)
 						nextQueue.add(((InternalNode) node).children);
 				}
 				sb.append('}');

@@ -1,11 +1,13 @@
 package io.github.blaney83.dencluecluster;
 
 import java.io.File;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.eclipse.core.commands.ExecutionException;
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnDomain;
 import org.knime.core.data.DataColumnSpec;
@@ -91,7 +93,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		Map<Integer, double[][]> m_hyperCubeBoundaries = new LinkedHashMap<Integer, double[][]>();
 
 		int indexCount = 0;
-
+		//potentially move this index creation to the configure method
 		for (Map.Entry<Integer, DataColumnDomain> entry : m_columnDomains.entrySet()) {
 
 			double colLowerBound = ((DoubleCell) entry.getValue().getLowerBound()).getDoubleValue();
@@ -121,10 +123,18 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// may need further optimization later on
 		int branchingFactor = (int)((dataTable.size())/((m_hyperCubeBoundaries.size() * 4) - 1));
 		
+		// STORE CUBES OR KEYS (CHOOSE LATER BASED ON PERFORMANCE
+		//x subset of allCubes such that x has no set membership with denseCubes; x = sparsely populated cubes
 		//highly populated cube keys
-		ArrayList<int[]> denseCubes = new ArrayList<int[]>();
+		ArrayList<int[]> denseCubeKeys = new ArrayList<int[]>();
+		//all populated cube keys
+		ArrayList<int[]> allCubeKeys = new ArrayList<int[]>();
+		//highly populated cubes
+		ArrayList<DENCLUEHyperCube> denseCubes = new ArrayList<DENCLUEHyperCube>();
+		//all populated cubes
+		ArrayList<DENCLUEHyperCube> allCubes = new ArrayList<DENCLUEHyperCube>();
 		
-		BPlusTree<int[], DENCLUEHyperCube> bTree = new BPlusTree<int[], DENCLUEHyperCube>(branchingFactor);
+		DENCLUEBPlusTree<int[], DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(branchingFactor);
 		//potentially expand to multi-threaded index searching for row feature vectors
 		//also, explore bulk loading for HyperCubes into B+ tree
 		for(DataRow row: dataTable) {
@@ -156,12 +166,35 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			if(rowMasterCube != null) {
 				boolean isHighlyPopulated = rowMasterCube.addMember(row.getKey(), featureVector);
 				if(isHighlyPopulated) {
-					denseCubes.add(indexedKey);
+					denseCubeKeys.add(indexedKey);
+					denseCubes.add(rowMasterCube);
 				}
 			}else {
-				bTree.insert(indexedKey, new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector));
+				rowMasterCube = new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector);
+				bTree.insert(indexedKey, rowMasterCube);
+				allCubeKeys.add(indexedKey);
+				allCubes.add(rowMasterCube);
 			}
 		}	
+		
+		if(denseCubes.size() < 1) {
+			throw new ExecutionException("The parameters used in your search classified all data as noise. Please re-evaluate your parameter choices and "
+					+ "re-execute this node.");
+		}
+		
+		//all populated cubes
+		ArrayList<DENCLUEHyperCube> megaCubes = new ArrayList<DENCLUEHyperCube>();
+		
+		for(DENCLUEHyperCube cube: denseCubes) {
+			for(DENCLUEHyperCube sparseCube: allCubes) {
+				if(cube.isNeighbor(sparseCube)) {
+					if(cube.isConnected(sparseCube)) {
+						megaCubes.add(new DENCLUEHyperCube(cube, sparseCube));
+						//maybe remove cube from denseCubes and add new megaCube...
+					}
+				}
+			}
+		}
 	//for denseCubes
 		//if indexedKey1 != indexedKey2 -1 (could implement a check neighbors method)
 		// not neighbors
