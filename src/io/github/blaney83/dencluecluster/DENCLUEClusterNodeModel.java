@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnDomain;
@@ -30,166 +31,242 @@ import org.knime.core.node.NodeModel;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 
-
 /**
- * This is the model implementation of DENCLUECluster.
- * Clusters data using the DENCLUE algorithm. This density-based method used Gaussian distribution and locates local maxima using hill-climbing. Data is pre-processed into grid cells (using a variation of the OptiGrid approach) and the summation of maxima is restricted to neighboring cells keep runtime low. For this reason, the DENCLUE method is faster than DBScan and OPTICS algorithms.
+ * This is the model implementation of DENCLUECluster. Clusters data using the
+ * DENCLUE algorithm. This density-based method used Gaussian distribution and
+ * locates local maxima using hill-climbing. Data is pre-processed into grid
+ * cells (using a variation of the OptiGrid approach) and the summation of
+ * maxima is restricted to neighboring cells keep runtime low. For this reason,
+ * the DENCLUE method is faster than DBScan and OPTICS algorithms.
  *
  * @author Benjamin Laney
  */
 public class DENCLUEClusterNodeModel extends NodeModel {
-	
+
 	static final int IN_PORT = 0;
-	
+
 	static final String OUTPUT_SUMMARY_TABLE_NAME = "Summary Table";
-    
+
 	static final String CFGKEY_SIGMA_VALUE = "sigmaValue";
 	static final String CFGKEY_XI_VALUE = "xiValue";
-	
+
 	static final double DEFAULT_SIGMA_VALUE = .3;
 	static final double DEFAULT_XI_VALUE = .3;
-	
-	private final SettingsModelDoubleBounded m_sigmaValue = new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_SIGMA_VALUE, 
-			DENCLUEClusterNodeModel.DEFAULT_SIGMA_VALUE, 0, Double.MAX_VALUE);
-	private final SettingsModelDoubleBounded m_xiValue = new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_XI_VALUE, 
-			DENCLUEClusterNodeModel.DEFAULT_XI_VALUE, 0, Double.MAX_VALUE);
-	
-	
+
+	private final SettingsModelDoubleBounded m_sigmaValue = new SettingsModelDoubleBounded(
+			DENCLUEClusterNodeModel.CFGKEY_SIGMA_VALUE, DENCLUEClusterNodeModel.DEFAULT_SIGMA_VALUE, 0,
+			Double.MAX_VALUE);
+	private final SettingsModelDoubleBounded m_xiValue = new SettingsModelDoubleBounded(
+			DENCLUEClusterNodeModel.CFGKEY_XI_VALUE, DENCLUEClusterNodeModel.DEFAULT_XI_VALUE, 0, Double.MAX_VALUE);
+
 	private int m_numDimensions = 0;
 	private ArrayList<Integer> m_columnIndices = new ArrayList<Integer>();
 	private LinkedHashMap<Integer, DataColumnDomain> m_columnDomains = new LinkedHashMap<Integer, DataColumnDomain>();
 
-    /**
-     * Constructor for the node model.
-     */
-    protected DENCLUEClusterNodeModel() {
+	/**
+	 * Constructor for the node model.
+	 */
+	protected DENCLUEClusterNodeModel() {
 
-        super(1, 1);
-        
-        //export cluster models at 2nd out-port 
-    }
+		super(1, 1);
 
-    @Override
-    protected BufferedDataTable[] execute(final BufferedDataTable[] inData,
-            final ExecutionContext exec) throws Exception {
-    	
-    	//Pre-Requisite Calculations- Ensure domain calculations up to date.
-    	
-    	// Step 1
-    	
-    	// Turn all rows into feature vectors
-    	
-    	// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers at feature vectors
-    	//											n-number of members
-    	//											nSum- linear sum of feature vectors
-    	
-    	// For each Cp cubes, if(Csp member)=>For each Csp
-    	//										if(d(c_curr, c_iter) <= 4(little sigma))
-    	//												c_curr has c_iter as neighbor
-    	// Csp member = Csp member of Cp where numPoints >= min numPoints at defined by ("E" min points per d-dimensional cube)
-        //	NOTE: B+ Tree structure needed
-    	
-    	// Step 2
-    	
-    	//gradient hill-climbing, localalized density functions etc., cluster assignments
-    	
-    	// Step 3 
-    	
-    	// for x*, create model and export at out-port 2
-    }
+		// export cluster models at 2nd out-port
+	}
 
-    @Override
-    protected void reset() {
+	@Override
+	protected BufferedDataTable[] execute(final BufferedDataTable[] inData, final ExecutionContext exec)
+			throws Exception {
 
-    }
+		BufferedDataTable dataTable = inData[IN_PORT];
+		double[] hyperCubeDimensions = new double[m_columnDomains.size()];
+		double[] columnLowerBounds = new double[m_columnDomains.size()];
+		double[] columnUpperBounds = new double[m_columnDomains.size()];
+		ArrayList<double[][]> m_hyperCubeBoundaries = new ArrayList<double[][]>();
 
-    @Override
-    protected DataTableSpec[] configure(final DataTableSpec[] inSpecs)
-            throws InvalidSettingsException {
-    	
-    	DataTableSpec tableSpecs = inSpecs[IN_PORT];
-    	
-    	for(int i = 0; i < tableSpecs.getNumColumns(); i ++) {
-    		DataColumnSpec colSpecs = tableSpecs.getColumnSpec(i);
-    		
-    		//Validate Double compatibility
-    		if(!colSpecs.getType().isCompatible(DoubleValue.class)) {
-    			continue;
-    		}
-    		
-    		//Validate domains exist (else throw error- must calculate domains prior to execution)
-    		DataColumnDomain colDomain = colSpecs.getDomain();
-    		if(!colDomain.hasLowerBound() || !colDomain.hasUpperBound()) {
-    			throw new InvalidSettingsException("Domains have not been calculated for a column(s) in your table. Please pre-process your data table with a Domain"
-    					+ " creator node and reconfigure.");
-    		}
-    		
-    		//determine d-dimensions
-    		m_numDimensions ++;
-    		m_columnIndices.add(i);
-    		m_columnDomains.put(i, colDomain);
-    	}
-    	
-    	//Validate Double compatibility
-    	if(m_numDimensions == 0) {
-    		throw new InvalidSettingsException("The data table provided does not contain any numeric data");
-    	}
-    	
-    	//data table output spec and configure "Cluster" column
+		double totalHyperCubes = 1;
+
+		int indexCount = 0;
+
+		for (Map.Entry<Integer, DataColumnDomain> entry : m_columnDomains.entrySet()) {
+
+			double colLowerBound = ((DoubleCell) entry.getValue().getLowerBound()).getDoubleValue();
+			double colUpperBound = ((DoubleCell) entry.getValue().getUpperBound()).getDoubleValue();
+
+			double columnRange = Math.abs(colUpperBound) + Math.abs(colLowerBound);
+			double hyperCubeColumnNumber = columnRange / (2 * m_sigmaValue.getDoubleValue());
+			totalHyperCubes *= hyperCubeColumnNumber;
+			hyperCubeDimensions[indexCount] = hyperCubeColumnNumber;
+			columnLowerBounds[indexCount] = colLowerBound;
+			columnUpperBounds[indexCount] = colUpperBound;
+
+			double[][] m_columnBoundaries = new double[(int) Math.ceil(hyperCubeColumnNumber)][2];
+
+			double currentLowBound = colLowerBound;
+			for (int i = 0; i < hyperCubeColumnNumber; i++) {
+				if (currentLowBound <= colUpperBound) {
+					double[] colBounds = new double[] { currentLowBound,
+							currentLowBound + (i * (2 * m_sigmaValue.getDoubleValue())) };
+					m_columnBoundaries[i] = colBounds;
+				}
+				currentLowBound += (2 * m_sigmaValue.getDoubleValue());
+			}
+			
+			m_hyperCubeBoundaries.add(m_columnBoundaries);
+			indexCount++;
+		}
+
+		LinkedHashMap<Integer, DENCLUEHyperCube> m_cubeMap = new LinkedHashMap<Integer, DENCLUEHyperCube>();
+		int cubeCounter = 0;
+		DENCLUEHyperCube currentCube = new DENCLUEHyperCube();
+		for(double[][] colCubeBounds : m_hyperCubeBoundaries) {
+			for(double[] oneRange : m_hyperCubeBoundaries.get(0)) {
+				m_cubeMap.put(cubeCounter, new DENCLUEHyperCube(oneRange));
+				cubeCounter ++;
+			}
+		}
+		
+		//for each row(
+		// 
+		
+		
+		// ex hyperCubeDimensions [25, 25, 25]
+		// for for(int j = 0; j < hyperCubeDimensions[i]; j ++)
+		// int current x val = columnLowerBounds [i]
+		// while (xval < columnUpperBounds[i])
+		// if(i = hyperCubeDimenstions.length -1) (if this is the last column, then new
+		// hyper cube with current values (x-min, y-min, z-min) and
+		// (x-min + 2 sigma, y-min + 2 sigma, z-min + 2 sigma) as dimensions. Add cube
+		// to array with label 1, 1, 1, then 1, 1, 2, then 1, 1, 3
+		// then 1, 2, 1, then, 1,2, 2, then, 1,2 3, then 1,3,1 then, 1,3,2, then 1,3,3,
+		// then, 2,1,1, then 2,1,2, then 2,1,3, then 2,2,1, 2,2,2, etc.
+
+	}
+
+	// Step 1
+
+	// Turn all rows into feature vectors
+
+	// Create d-dimensional hyper cubes, each with nFeatureVectorMembers- pointers
+	// at feature vectors
+	// n-number of members
+	// nSum- linear sum of feature vectors
+
+	// For each Cp cubes, if(Csp member)=>For each Csp
+	// if(d(c_curr, c_iter) <= 4(little sigma))
+	// c_curr has c_iter as neighbor
+	// Csp member = Csp member of Cp where numPoints >= min numPoints at defined by
+	// ("E" min points per d-dimensional cube)
+	// NOTE: B+ Tree structure needed
+
+	// Step 2
+
+	// gradient hill-climbing, localalized density functions etc., cluster
+	// assignments
+
+	// Step 3
+
+	// for x*, create model and export at out-port 2
+	}
+
+	private void processColumn(final int dimensionLength, final double lowerBound, final double upperBound) {
+
+		for (int j = 0; j < dimensionLength; j++) {
+			if (lowerBound < upperBound) {
+
+			}
+		}
+
+	}
+
+	@Override
+	protected void reset() {
+
+	}
+
+	@Override
+	protected DataTableSpec[] configure(final DataTableSpec[] inSpecs) throws InvalidSettingsException {
+
+		DataTableSpec tableSpecs = inSpecs[IN_PORT];
+
+		for (int i = 0; i < tableSpecs.getNumColumns(); i++) {
+			DataColumnSpec colSpecs = tableSpecs.getColumnSpec(i);
+
+			// Validate Double compatibility
+			if (!colSpecs.getType().isCompatible(DoubleValue.class)) {
+				continue;
+			}
+
+			// Validate domains exist (else throw error- must calculate domains prior to
+			// execution)
+			DataColumnDomain colDomain = colSpecs.getDomain();
+			if (!colDomain.hasLowerBound() || !colDomain.hasUpperBound()) {
+				throw new InvalidSettingsException(
+						"Domains have not been calculated for a column(s) in your table. Please pre-process your data table with a Domain"
+								+ " creator node and reconfigure.");
+			}
+
+			// determine d-dimensions
+			m_numDimensions++;
+			m_columnIndices.add(i);
+			m_columnDomains.put(i, colDomain);
+		}
+
+		// Validate Double compatibility
+		if (m_numDimensions == 0) {
+			throw new InvalidSettingsException("The data table provided does not contain any numeric data");
+		}
+
+		// data table output spec and configure "Cluster" column
 		DataColumnSpec clusterColSpec = createClusterColumnSpec();
 		DataTableSpec appendSpec = new DataTableSpec(clusterColSpec);
 		DataTableSpec outputSpec = new DataTableSpec(inSpecs[IN_PORT], appendSpec);
-		
-		//cluster summary table output spec
+
+		// cluster summary table output spec
 		DataColumnSpec summaryColSpec = createSummaryColumnSpec();
-		DataTableSpec summaryTableSpec = new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME, summaryColSpec);
-   	
-    	//return new data table with cluster column and summary table specs
-        return new DataTableSpec[]{outputSpec, summaryTableSpec};
-    }
-    
+		DataTableSpec summaryTableSpec = new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME,
+				summaryColSpec);
+
+		// return new data table with cluster column and summary table specs
+		return new DataTableSpec[] { outputSpec, summaryTableSpec };
+	}
+
 	private DataColumnSpec createClusterColumnSpec() {
 		DataColumnSpecCreator newColSpecCreator = new DataColumnSpecCreator("Cluster", StringCell.TYPE);
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
 	}
-	
+
 	private DataColumnSpec createSummaryColumnSpec() {
 		DataColumnSpecCreator newColSpecCreator = new DataColumnSpecCreator("Count", IntCell.TYPE);
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
 	}
 
-    @Override
-    protected void saveSettingsTo(final NodeSettingsWO settings) {
+	@Override
+	protected void saveSettingsTo(final NodeSettingsWO settings) {
 
-    }
+	}
 
-    @Override
-    protected void loadValidatedSettingsFrom(final NodeSettingsRO settings)
-            throws InvalidSettingsException {
+	@Override
+	protected void loadValidatedSettingsFrom(final NodeSettingsRO settings) throws InvalidSettingsException {
 
-    }
+	}
 
-    @Override
-    protected void validateSettings(final NodeSettingsRO settings)
-            throws InvalidSettingsException {
+	@Override
+	protected void validateSettings(final NodeSettingsRO settings) throws InvalidSettingsException {
 
-    }
+	}
 
-    @Override
-    protected void loadInternals(final File internDir,
-            final ExecutionMonitor exec) throws IOException,
-            CanceledExecutionException {
+	@Override
+	protected void loadInternals(final File internDir, final ExecutionMonitor exec)
+			throws IOException, CanceledExecutionException {
 
-    }
+	}
 
-    @Override
-    protected void saveInternals(final File internDir,
-            final ExecutionMonitor exec) throws IOException,
-            CanceledExecutionException {
-       
-    }
+	@Override
+	protected void saveInternals(final File internDir, final ExecutionMonitor exec)
+			throws IOException, CanceledExecutionException {
+
+	}
 
 }
-

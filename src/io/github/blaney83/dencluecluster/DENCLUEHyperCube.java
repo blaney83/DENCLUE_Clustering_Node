@@ -1,15 +1,26 @@
 package io.github.blaney83.dencluecluster;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class DENCLUEHyperCube {
 	
-	private final double m_linearSum;
+	private final int m_cubeKey;
 	
-	private final int m_numFeatureVectors;
+	private double m_linearSum;
 	
-	private final List<DENCLUEHyperCube> m_neighbors;
+	private int m_numFeatureVectors;
 	
+	private List<DENCLUEHyperCube> m_neighbors;
+	
+	private boolean m_isNoise;
+	
+	private ArrayList<double[]> m_lowerBounds;
+	
+	private ArrayList<double[]> m_upperBounds;
+	
+	
+	public DENCLUEHyperCube
 	
 	
 
