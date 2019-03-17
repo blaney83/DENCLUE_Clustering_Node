@@ -79,9 +79,9 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 
 		BufferedDataTable dataTable = inData[IN_PORT];
 		double[] hyperCubeDimensions = new double[m_columnDomains.size()];
-		double[] columnLowerBounds = new double[m_columnDomains.size()];
-		double[] columnUpperBounds = new double[m_columnDomains.size()];
-		ArrayList<double[][]> m_hyperCubeBoundaries = new ArrayList<double[][]>();
+//		double[] columnLowerBounds = new double[m_columnDomains.size()];
+//		double[] columnUpperBounds = new double[m_columnDomains.size()];
+		Map<Integer, double[][]> m_hyperCubeBoundaries = new LinkedHashMap<Integer, double[][]>();
 
 		double totalHyperCubes = 1;
 
@@ -96,8 +96,8 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			double hyperCubeColumnNumber = columnRange / (2 * m_sigmaValue.getDoubleValue());
 			totalHyperCubes *= hyperCubeColumnNumber;
 			hyperCubeDimensions[indexCount] = hyperCubeColumnNumber;
-			columnLowerBounds[indexCount] = colLowerBound;
-			columnUpperBounds[indexCount] = colUpperBound;
+//			columnLowerBounds[indexCount] = colLowerBound;
+//			columnUpperBounds[indexCount] = colUpperBound;
 
 			double[][] m_columnBoundaries = new double[(int) Math.ceil(hyperCubeColumnNumber)][2];
 
@@ -111,23 +111,58 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 				currentLowBound += (2 * m_sigmaValue.getDoubleValue());
 			}
 			
-			m_hyperCubeBoundaries.add(m_columnBoundaries);
+			m_hyperCubeBoundaries.put(entry.getKey(), m_columnBoundaries);
 			indexCount++;
 		}
+		//choosing the "order" of the b+ tree using the total records/ size of key in Bytes - 1
+		// may need further optimization later on
+		int branchingFactor = (int)((dataTable.size())/((m_hyperCubeBoundaries.size() * 4) - 1));
+		
+		BPlusTree<int[], DENCLUEHyperCube> bTree = new BPlusTree<int[], DENCLUEHyperCube>(branchingFactor);
+		//potentially expand to multi-threaded index searching for row feature vectors
+		//also, explore bulk loading for HyperCubes into B+ tree
+		for(DataRow row: dataTable) {
+			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
+			int count = 0;
+			for(Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
+				double rowColVal = ((DoubleCell) row.getCell(entry.getKey())).getDoubleValue();
+				
+				//binary search
+			    int lowInd = 0;
+			    int highInd = entry.getValue().length;
 
-		LinkedHashMap<Integer, DENCLUEHyperCube> m_cubeMap = new LinkedHashMap<Integer, DENCLUEHyperCube>();
-		int cubeCounter = 0;
-		DENCLUEHyperCube currentCube = new DENCLUEHyperCube();
-		for(double[][] colCubeBounds : m_hyperCubeBoundaries) {
-			for(double[] oneRange : m_hyperCubeBoundaries.get(0)) {
-				m_cubeMap.put(cubeCounter, new DENCLUEHyperCube(oneRange));
-				cubeCounter ++;
+			    while(lowInd <= highInd){
+
+			        int middleInd = (highInd + lowInd) / 2;
+
+			        if(entry.getValue()[middleInd][0] > rowColVal){
+			            highInd = middleInd;
+			        }else if(entry.getValue()[middleInd][1] <= rowColVal){
+			            lowInd = middleInd - 1;
+			        }else{
+			            indexedKey[count] = middleInd;
+			        }
+			    }
+			    count ++;
+			}
+			DENCLUEHyperCube rowMasterCube = bTree.search(indexedKey);
+			if(rowMasterCube != null) {
+				rowMasterCube.addMember(row.getKey());
+			}else {
+				bTree.insert(indexedKey, new DENCLUEHyperCube(row.getKey()));
 			}
 		}
 		
-		//for each row(
-		// 
 		
+//		LinkedHashMap<Integer, DENCLUEHyperCube> m_cubeMap = new LinkedHashMap<Integer, DENCLUEHyperCube>();
+//		int cubeCounter = 0;
+//		DENCLUEHyperCube currentCube = new DENCLUEHyperCube();
+//		for(double[][] colCubeBounds : m_hyperCubeBoundaries) {
+//			for(double[] oneRange : m_hyperCubeBoundaries.get(0)) {
+//				m_cubeMap.put(cubeCounter, new DENCLUEHyperCube(oneRange));
+//				cubeCounter ++;
+//			}
+//		}
 		
 		// ex hyperCubeDimensions [25, 25, 25]
 		// for for(int j = 0; j < hyperCubeDimensions[i]; j ++)
