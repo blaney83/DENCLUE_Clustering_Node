@@ -3,13 +3,16 @@ package io.github.blaney83.dencluecluster;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.knime.core.data.DataRow;
+import org.knime.core.data.RowKey;
+
 public class DENCLUEHyperCube {
 	
-	private final int m_cubeKey;
+	private final int[] m_cubeKey;
 	
-	private double m_linearSum;
+	private double[] m_linearSum;
 	
-	private int m_numFeatureVectors;
+	private int m_numFeatureVectors = 0;
 	
 	private List<DENCLUEHyperCube> m_neighbors;
 	
@@ -19,9 +22,30 @@ public class DENCLUEHyperCube {
 	
 	private ArrayList<double[]> m_upperBounds;
 	
+	private ArrayList<RowKey> m_memberRows;
 	
-	public DENCLUEHyperCube
 	
+	public DENCLUEHyperCube(final int[] cubekey, final RowKey rowKey, final double[] featureVector) {
+		m_cubeKey = cubekey;
+		m_memberRows = new ArrayList<RowKey>();
+		m_memberRows.add(rowKey);
+		m_linearSum = new double[featureVector.length];
+		System.arraycopy(featureVector, 0, m_linearSum, 0, m_linearSum.length);
+		m_numFeatureVectors ++;
+	}
 	
-
+	public void addMember(final RowKey rowKey, final double[] featureVector) {
+		m_memberRows.add(rowKey);
+		for(int i = 0; i < m_linearSum.length; i ++) {
+			m_linearSum[i] += featureVector[i];
+		}
+		m_numFeatureVectors ++;
+	}
+	
+	//method find neighbors
+	//search b tree for all cube key +/- 1
+	//if neighbor != null, run check neighbor
+	//if neighbor distance < 4sigma, then set as neighbor
+	// else remove as neighbor
+	//then update neighbor cube to prevent redundant searches
 }

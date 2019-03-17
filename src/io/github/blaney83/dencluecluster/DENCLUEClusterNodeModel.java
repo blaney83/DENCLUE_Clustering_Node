@@ -79,11 +79,9 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 
 		BufferedDataTable dataTable = inData[IN_PORT];
 		double[] hyperCubeDimensions = new double[m_columnDomains.size()];
-//		double[] columnLowerBounds = new double[m_columnDomains.size()];
-//		double[] columnUpperBounds = new double[m_columnDomains.size()];
+		double totalHyperCubes = 1;
 		Map<Integer, double[][]> m_hyperCubeBoundaries = new LinkedHashMap<Integer, double[][]>();
 
-		double totalHyperCubes = 1;
 
 		int indexCount = 0;
 
@@ -96,8 +94,6 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			double hyperCubeColumnNumber = columnRange / (2 * m_sigmaValue.getDoubleValue());
 			totalHyperCubes *= hyperCubeColumnNumber;
 			hyperCubeDimensions[indexCount] = hyperCubeColumnNumber;
-//			columnLowerBounds[indexCount] = colLowerBound;
-//			columnUpperBounds[indexCount] = colUpperBound;
 
 			double[][] m_columnBoundaries = new double[(int) Math.ceil(hyperCubeColumnNumber)][2];
 
@@ -123,10 +119,11 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		//also, explore bulk loading for HyperCubes into B+ tree
 		for(DataRow row: dataTable) {
 			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
+			double[] featureVector = new double[m_hyperCubeBoundaries.size()];
 			int count = 0;
 			for(Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
 				double rowColVal = ((DoubleCell) row.getCell(entry.getKey())).getDoubleValue();
-				
+				featureVector[count] = rowColVal;
 				//binary search
 			    int lowInd = 0;
 			    int highInd = entry.getValue().length;
@@ -147,22 +144,12 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			}
 			DENCLUEHyperCube rowMasterCube = bTree.search(indexedKey);
 			if(rowMasterCube != null) {
-				rowMasterCube.addMember(row.getKey());
+				rowMasterCube.addMember(row.getKey(), featureVector);
 			}else {
-				bTree.insert(indexedKey, new DENCLUEHyperCube(row.getKey()));
+				bTree.insert(indexedKey, new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector));
 			}
 		}
 		
-		
-//		LinkedHashMap<Integer, DENCLUEHyperCube> m_cubeMap = new LinkedHashMap<Integer, DENCLUEHyperCube>();
-//		int cubeCounter = 0;
-//		DENCLUEHyperCube currentCube = new DENCLUEHyperCube();
-//		for(double[][] colCubeBounds : m_hyperCubeBoundaries) {
-//			for(double[] oneRange : m_hyperCubeBoundaries.get(0)) {
-//				m_cubeMap.put(cubeCounter, new DENCLUEHyperCube(oneRange));
-//				cubeCounter ++;
-//			}
-//		}
 		
 		// ex hyperCubeDimensions [25, 25, 25]
 		// for for(int j = 0; j < hyperCubeDimensions[i]; j ++)
@@ -175,7 +162,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// then 1, 2, 1, then, 1,2, 2, then, 1,2 3, then 1,3,1 then, 1,3,2, then 1,3,3,
 		// then, 2,1,1, then 2,1,2, then 2,1,3, then 2,2,1, 2,2,2, etc.
 
-	}
+	
 
 	// Step 1
 
