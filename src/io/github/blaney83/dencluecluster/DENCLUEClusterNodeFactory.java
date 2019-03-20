@@ -26,7 +26,7 @@ public class DENCLUEClusterNodeFactory
      */
     @Override
     public int getNrNodeViews() {
-        return 1;
+        return 0;
     }
 
     /**
@@ -35,7 +35,7 @@ public class DENCLUEClusterNodeFactory
     @Override
     public NodeView<DENCLUEClusterNodeModel> createNodeView(final int viewIndex,
             final DENCLUEClusterNodeModel nodeModel) {
-        return new DENCLUEClusterNodeView(nodeModel);
+        return null;
     }
 
     /**

@@ -226,7 +226,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// in theory at this point, we have merged supercubes and sporadic noise cubes in two separate b+ search trees and
 		// part 1 is complete...
 
-		// TODO
+		// TODO PART1
 		
 		// possibly create class IndexedKey implementing Comparable to check for matches
 		// to the key
@@ -239,6 +239,8 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// dimensions the joined integer value of indicies would exceed Integer.MAX
 		
 		// combine iterations where possible to improve performance
+		
+		// may need to change cube collections to sets
 		
 		// j-unit tests for part 1
 
