@@ -186,9 +186,37 @@ public class DENCLUEHyperCube {
 		}
 	}
 
-	public void buildLocalDensityFunction() {
-		// TODO Auto-generated method stub
-		
+	public double localDensityFunction(final double[] featureVector, final double sigma) {
+		//consider ERROR(x) in future dev
+		double sum = 0.0;
+		for(Map.Entry<Double, RowKey> entry : m_nearX.entrySet()) {
+			double numerator = Math.pow(euclidianDistance(featureVector, m_clusterMembers.get(entry.getValue())),2);
+			//sigma ^ 2 may need to be swapped for variance
+			double denominator = 2 * (Math.pow(sigma, 2));
+			double partialSum = Math.E * (-1 * (numerator/denominator));
+			sum += partialSum;
+		}
+		return sum;
+	}
+	
+	public boolean findClusterDensityAttractor(final double xi, final double sigma) {
+		RowKey densityAttrKey;
+		double densityAttr = 0;
+		for(Map.Entry<Double, RowKey> entry : m_nearX.entrySet()) {
+			double localDensityX = localDensityFunction(m_clusterMembers.get(entry.getValue()), sigma);
+			if(localDensityX >= densityAttr) {
+				densityAttr = localDensityX;
+				densityAttrKey = entry.getValue();
+			}else {
+				break;
+			}
+		}
+		//must be true to meet cluster density threshold defined by user
+		if(densityAttr >= xi) {
+			return true;
+		}else {
+			return false;
+		}
 	}
 	
 	public double euclidianDistance(final double[] setOne, final double[] setTwo) {
