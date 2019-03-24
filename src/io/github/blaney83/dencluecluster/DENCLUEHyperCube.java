@@ -1,7 +1,11 @@
 package io.github.blaney83.dencluecluster;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.knime.core.data.DataRow;
 import org.knime.core.data.RowKey;
@@ -21,11 +25,15 @@ public class DENCLUEHyperCube {
 
 	private boolean m_isNoise;
 
-	private ArrayList<double[]> m_lowerBounds;
-
-	private ArrayList<double[]> m_upperBounds;
+	private Map<RowKey, double[]> m_clusterMembers;
+	
+	private Map<RowKey, double[]> m_noiseMembers;
+	
+	private Map<Double, RowKey> m_nearX;
 
 	private ArrayList<RowKey> m_memberRows;
+	
+	private int k = 0;
 
 	public DENCLUEHyperCube(final DENCLUEIndexKey cubekey, final RowKey rowKey, final double[] featureVector) {
 //		public DENCLUEHyperCube(final int[] cubekey, final RowKey rowKey, final double[] featureVector) {
@@ -37,11 +45,15 @@ public class DENCLUEHyperCube {
 		m_numFeatureVectors++;
 		m_isNoise = true;
 		m_neighbors = new ArrayList<DENCLUEIndexKey>();
+		m_clusterMembers = new LinkedHashMap<RowKey, double[]>();
+		m_noiseMembers = new LinkedHashMap<RowKey, double[]>();
+		m_clusterMembers.put(rowKey, featureVector);
 	}
 
 	public boolean addMember(final RowKey rowKey, final double[] featureVector) {
 		addMember(rowKey);
 		updateLinearSum(featureVector);
+		m_clusterMembers.put(rowKey, featureVector);
 		// as points are added, as the points exceed a certain threshhold,
 		// then return the key of this cube to be stored in a highly populated key[]
 		// and change the isNoise to false
@@ -115,6 +127,8 @@ public class DENCLUEHyperCube {
 	}
 	
 	protected void addNeighbor(final DENCLUEHyperCube mergingCube) {
+		this.m_numFeatureVectors += mergingCube.getNumFeatureVectors();
+		this.m_clusterMembers.putAll(mergingCube.getClusterMembers());
 		this.updateLinearSum(mergingCube.getLinearSum());
 		for(RowKey joiningKey : mergingCube.getMemberRows()) {
 			this.addMember(joiningKey);
@@ -136,6 +150,55 @@ public class DENCLUEHyperCube {
 	
 	protected List<DENCLUEIndexKey> getNeighborCells(){
 		return this.m_neighbors;
+	}
+	
+	protected int getNumFeatureVectors() {
+		return this.m_numFeatureVectors;
+	}
+	
+	protected Map<RowKey, double[]> getClusterMembers(){
+		return this.m_clusterMembers;
+	}
+	
+	protected Map<RowKey, double[]> getNoiseMembers(){
+		return this.m_noiseMembers;
+	}
+
+	public void createNearXSet(final double sigma) {
+		//creates ordinality in descending order based on the distance from the mean
+		m_nearX = new TreeMap<Double, RowKey>(new Comparator<Double>() 
+	     {
+			@Override
+			public int compare(Double o1, Double o2) {
+				// TODO Auto-generated method stub
+				return o2.compareTo(o1);
+			}
+	     });
+		for(Map.Entry<RowKey, double[]> entry: m_clusterMembers.entrySet()) {
+			double euclDist = euclidianDistance(m_meanVector, entry.getValue());
+			RowKey currKey = entry.getKey();
+			if(euclDist > k * sigma) {
+				//I believe the members aren't disqualified yet based on d(mean(c), x)
+//				m_noiseMembers.put(currKey, m_clusterMembers.remove(currKey));
+			}else if(euclDist <= k * sigma) {
+				m_nearX.put(euclDist, currKey);
+			}
+		}
+	}
+
+	public void buildLocalDensityFunction() {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	public double euclidianDistance(final double[] setOne, final double[] setTwo) {
+		double currSum = 0;
+		for (int i = 0; i < setOne.length; i++) {
+			double diff = (setOne[i] - setTwo[i]);
+			currSum += (diff * diff);
+		}
+		double finalValue = Math.sqrt(currSum);
+		return finalValue;
 	}
 	
 	// TODO

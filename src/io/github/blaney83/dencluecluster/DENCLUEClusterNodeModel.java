@@ -209,19 +209,33 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		
 		//consolidating cubes based on their neighbors. Deleting old cubes as they are merged and checking for partially merged
 		// super-hyper cubes
+		// getNeighborCells NOT CORRECT COLLECTION (need to add fnality to store neighbors)
 		for (DENCLUEHyperCube cube : denseCubes) {
 			for(DENCLUEIndexKey indexKey : cube.getNeighborCells()) {
 				DENCLUEHyperCube mergingCube = bTree.search(indexKey);
 				DENCLUEHyperCube potentialSuperCube = clusterTree.search(indexKey);
 				if(mergingCube != null) {
 					cube.addNeighbor(mergingCube);
+					//b-tree now becomes home of noise cluster members
 					bTree.delete(indexKey);
-				}
-				if(potentialSuperCube != null) {
+					//prune lists of dense cubes to match with merged cubes
+					if(denseCubes.contains(mergingCube)) {
+						denseCubes.remove(mergingCube);
+						denseCubeKeys.remove(indexKey);
+					}
+				}else if(potentialSuperCube != null) {
 					cube.addNeighbor(potentialSuperCube);
+					//prevent duplicate, already merged cubes from existing in clusterTree
 					clusterTree.delete(indexKey);
+					//prune lists of dense cubes to match with merged cubes
+					if(denseCubes.contains(potentialSuperCube)) {
+						denseCubes.remove(potentialSuperCube);
+						denseCubeKeys.remove(indexKey);
+					}
 				}
+				//need to remove dense cubes that are merged with another dense cube from denseCube list
 			}
+			//b-tree now becomes home of noise cluster members
 			bTree.delete(cube.getCubeKey());
 			clusterTree.insert(cube.getCubeKey(), cube);
 		}
@@ -232,14 +246,14 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// TODO PART1
 		
 		// possibly create class IndexedKey implementing Comparable to check for matches
-		// to the key
+		// to the key- DONE
 		// the first .equals check could be if sum1 != sum2 return false to speed
-		// evaluation time
+		// evaluation time- NOT NEEDED
 		// then for each int in both int[]1 and int[]2 stop evaluation at first
-		// mis-match
+		// mis-match- ACHIEVED WITH POINT ONE
 		// this could extend the ability of the node to handle dimensionality > 20 as in
-		// higher
-		// dimensions the joined integer value of indicies would exceed Integer.MAX
+		// higher- ACHIEVED WITH POINT ONE
+		// dimensions the joined integer value of indicies would exceed Integer.MAX- AVOIDED
 		
 		// combine iterations where possible to improve performance
 		
@@ -252,11 +266,28 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// consider all highly populated cube + their connected cubes exist as:
 		// C_sp(highly pop. hypercubes) or c(h-cubes) in C_p (total cubes) such that there exists c_s (a cluster) as
 		// an element of C_sp and there exists a connection (c_s, c)
+		
+		// 2.1- create set near(x) | d(mean(c),x^i) <= k*little sigma : k = 4 (arbt.) | near(x){ x^0.dist >> x^n.dist }
+		
+		// 2.2- build local density fn f-hat^D_gauss(x) for cube c = gaussian density fn = sum of all infl. fns for near(x)
+		// as sum(e*(-((d(x^i,x^(i+1)))^2/(2(littleSigma^2))))) for near(x) feature vectors (x^i) in super-hypercube C
+		
+		// 2.3- gradient hill-climbing
+		// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C while(f-hat(x^i+1)>=f-hat(x^i))
+		// if(f-hat(x^i+1)-f-hat(x^i)<= (littleSigma/2) add x^i to set{cluster(x*)}
+		
+		for(DENCLUEIndexKey key : denseCubeKeys) {
+			DENCLUEHyperCube joinedCube = clusterTree.search(key);
+			joinedCube.createNearXSet(m_sigmaValue);
+			joinedCube.buildLocalDensityFunction();
+			ArrayList<RowKey> clusterKeys = joinedCube.createClusterSet();
+			ArrayList<RowKey> noiseKeys = joinedCube.getNoiseMembers();
+		}
 
-		// gradient hill-climbing, localalized density functions etc., cluster
-		// assignments
 
 		// Step 3
+		
+		// Assign Clusters and return qualified table
 
 		// for x*, create model and export at out-port 2
 	}
