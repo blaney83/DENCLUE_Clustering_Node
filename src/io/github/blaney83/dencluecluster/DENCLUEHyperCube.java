@@ -8,7 +8,8 @@ import org.knime.core.data.RowKey;
 
 public class DENCLUEHyperCube {
 
-	private final int[] m_cubeKey;
+	private final DENCLUEIndexKey m_cubeKey;
+//	private final int[] m_cubeKey;
 
 	private double[] m_linearSum;
 
@@ -16,7 +17,7 @@ public class DENCLUEHyperCube {
 
 	private int m_numFeatureVectors = 0;
 
-	private List<int[]> m_neighbors;
+	private List<DENCLUEIndexKey> m_neighbors;
 
 	private boolean m_isNoise;
 
@@ -26,7 +27,8 @@ public class DENCLUEHyperCube {
 
 	private ArrayList<RowKey> m_memberRows;
 
-	public DENCLUEHyperCube(final int[] cubekey, final RowKey rowKey, final double[] featureVector) {
+	public DENCLUEHyperCube(final DENCLUEIndexKey cubekey, final RowKey rowKey, final double[] featureVector) {
+//		public DENCLUEHyperCube(final int[] cubekey, final RowKey rowKey, final double[] featureVector) {
 		m_cubeKey = cubekey;
 		m_memberRows = new ArrayList<RowKey>();
 		m_memberRows.add(rowKey);
@@ -34,7 +36,7 @@ public class DENCLUEHyperCube {
 		System.arraycopy(featureVector, 0, m_linearSum, 0, m_linearSum.length);
 		m_numFeatureVectors++;
 		m_isNoise = true;
-		m_neighbors = new ArrayList<int[]>();
+		m_neighbors = new ArrayList<DENCLUEIndexKey>();
 	}
 
 	public boolean addMember(final RowKey rowKey, final double[] featureVector) {
@@ -65,10 +67,10 @@ public class DENCLUEHyperCube {
 	}
 
 	public boolean isNeighbor(final DENCLUEHyperCube otherCube) {
-		int[] otherKey = otherCube.getCubeKey();
+		DENCLUEIndexKey otherKey = otherCube.getCubeKey();
 		int diffSum = 0;
-		for (int i = 0; i < otherKey.length; i++) {
-			int absDiff = Math.abs(otherKey[i] - m_cubeKey[i]);
+		for (int i = 0; i < otherKey.size(); i++) {
+			int absDiff = Math.abs(otherKey.getValue(i) - m_cubeKey.getValue(i));
 			if (absDiff > 1) {
 				return false;
 			} else if (absDiff == 1) {
@@ -120,11 +122,7 @@ public class DENCLUEHyperCube {
 		this.findMean();
 	}
 
-
-
-
-
-	protected int[] getCubeKey() {
+	protected DENCLUEIndexKey getCubeKey() {
 		return this.m_cubeKey;
 	}
 	
@@ -136,7 +134,7 @@ public class DENCLUEHyperCube {
 		return this.m_memberRows;
 	}
 	
-	protected List<int[]> getNeighborCells(){
+	protected List<DENCLUEIndexKey> getNeighborCells(){
 		return this.m_neighbors;
 	}
 	

@@ -128,20 +128,22 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// x subset of allCubes such that x has no set membership with denseCubes; x =
 		// sparsely populated cubes
 		// highly populated cube keys
-		ArrayList<int[]> denseCubeKeys = new ArrayList<int[]>();
+		ArrayList<DENCLUEIndexKey> denseCubeKeys = new ArrayList<DENCLUEIndexKey>();
 		// all populated cube keys
-		ArrayList<int[]> allCubeKeys = new ArrayList<int[]>();
+		ArrayList<DENCLUEIndexKey> allCubeKeys = new ArrayList<DENCLUEIndexKey>();
 		// highly populated cubes
 		ArrayList<DENCLUEHyperCube> denseCubes = new ArrayList<DENCLUEHyperCube>();
 		// all populated cubes
 		ArrayList<DENCLUEHyperCube> allCubes = new ArrayList<DENCLUEHyperCube>();
 
-		DENCLUEBPlusTree<int[], DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(
+//		DENCLUEBPlusTree<int[], DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(
+		DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube> bTree = new DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube>(
 				branchingFactor);
 		// potentially expand to multi-threaded index searching for row feature vectors
 		// also, explore bulk loading for HyperCubes into B+ tree
 		for (DataRow row : dataTable) {
-			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
+//			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
+			DENCLUEIndexKey indexedKey = new DENCLUEIndexKey(m_hyperCubeBoundaries.size());
 			double[] featureVector = new double[m_hyperCubeBoundaries.size()];
 			int count = 0;
 			for (Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
@@ -160,7 +162,8 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 					} else if (entry.getValue()[middleInd][1] <= rowColVal) {
 						lowInd = middleInd - 1;
 					} else {
-						indexedKey[count] = middleInd;
+//						indexedKey[count] = middleInd;
+						indexedKey.setValue(count, middleInd);
 					}
 				}
 				count++;
@@ -201,13 +204,13 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 	
 		//this new btree will hold all clusters and old btree after loop will be noise cluster holding only sparse noise cubes
 		int clusterFactor = (int) ((denseCubes.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
-		DENCLUEBPlusTree<int[], DENCLUEHyperCube> clusterTree = new DENCLUEBPlusTree<int[], DENCLUEHyperCube>(
+		DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube> clusterTree = new DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube>(
 				clusterFactor);
 		
 		//consolidating cubes based on their neighbors. Deleting old cubes as they are merged and checking for partially merged
 		// super-hyper cubes
 		for (DENCLUEHyperCube cube : denseCubes) {
-			for(int[] indexKey : cube.getNeighborCells()) {
+			for(DENCLUEIndexKey indexKey : cube.getNeighborCells()) {
 				DENCLUEHyperCube mergingCube = bTree.search(indexKey);
 				DENCLUEHyperCube potentialSuperCube = clusterTree.search(indexKey);
 				if(mergingCube != null) {
@@ -245,6 +248,10 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// j-unit tests for part 1
 
 		// Step 2
+		
+		// consider all highly populated cube + their connected cubes exist as:
+		// C_sp(highly pop. hypercubes) or c(h-cubes) in C_p (total cubes) such that there exists c_s (a cluster) as
+		// an element of C_sp and there exists a connection (c_s, c)
 
 		// gradient hill-climbing, localalized density functions etc., cluster
 		// assignments
