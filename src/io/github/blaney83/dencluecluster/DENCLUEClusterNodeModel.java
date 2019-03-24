@@ -4,8 +4,10 @@ import java.io.File;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.knime.core.data.DataCell;
@@ -267,24 +269,33 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// C_sp(highly pop. hypercubes) or c(h-cubes) in C_p (total cubes) such that there exists c_s (a cluster) as
 		// an element of C_sp and there exists a connection (c_s, c)
 		
-		// 2.1- create set near(x) | d(mean(c),x^i) <= k*little sigma : k = 4 (arbt.) | near(x){ x^0.dist >> x^n.dist }
-		
-		// 2.2- build local density fn f-hat^D_gauss(x) for cube c = gaussian density fn = sum of all infl. fns for near(x)
-		// as sum(e*(-((d(x^i,x^(i+1)))^2/(2(littleSigma^2))))) for near(x) feature vectors (x^i) in super-hypercube C
-		
-		// 2.3- gradient hill-climbing
-		// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C while(f-hat(x^i+1)>=f-hat(x^i))
-		// if(f-hat(x^i+1)-f-hat(x^i)<= (littleSigma/2) add x^i to set{cluster(x*)}
+		ArrayList<Set<RowKey>> clusters = new ArrayList<Set<RowKey>>();
+		Set<RowKey> noise = new HashSet<RowKey>();
 		
 		for(DENCLUEIndexKey key : denseCubeKeys) {
 			DENCLUEHyperCube joinedCube = clusterTree.search(key);
-			joinedCube.createNearXSet(m_sigmaValue);
-			joinedCube.buildLocalDensityFunction();
-			ArrayList<RowKey> clusterKeys = joinedCube.createClusterSet();
-			ArrayList<RowKey> noiseKeys = joinedCube.getNoiseMembers();
+			// 2.1- create set near(x) | d(mean(c),x^i) <= k*little sigma : k = 4 (arbt.) | near(x){ x^0.dist >> x^n.dist }
+			// 2.2- build local density fn f-hat^D_gauss(x) for cube c = gaussian density fn = sum of all infl. fns for near(x)
+			// as sum(e*(-((d(x^i,x^(i+1)))^2/(2(littleSigma^2))))) for near(x) feature vectors (x^i) in super-hypercube C
+			// 2.3- gradient hill-climbing
+			// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C while(f-hat(x^i+1)>=f-hat(x^i))
+			// if(f-hat(x^i+1)-f-hat(x^i)<= (littleSigma/2) add x^i to set{cluster(x*)}
+			boolean result = joinedCube.clusterHyperCube(m_sigmaValue.getDoubleValue(), m_xiValue.getDoubleValue());
+			if(result) {
+				clusters.add(joinedCube.getClusterRows());
+				noise.addAll(joinedCube.getNoiseRows());
+			}else {
+				//default add all members to noise (xi value chosen improperly by user, or no clusters exist)
+				noise.addAll(joinedCube.getMemberRows());
+			}
 		}
-
-
+		
+		for(DENCLUEIndexKey cubeKey : allCubeKeys) {
+			DENCLUEHyperCube noiseCube = bTree.search(cubeKey);
+			if(noiseCube != null) {
+				noise.addAll(noiseCube.getMemberRows());
+			}
+		}
 		// Step 3
 		
 		// Assign Clusters and return qualified table

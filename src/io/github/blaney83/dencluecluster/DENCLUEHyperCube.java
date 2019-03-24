@@ -2,9 +2,11 @@ package io.github.blaney83.dencluecluster;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.knime.core.data.DataRow;
@@ -30,8 +32,14 @@ public class DENCLUEHyperCube {
 	private Map<RowKey, double[]> m_noiseMembers;
 	
 	private Map<Double, RowKey> m_nearX;
+	
+	private Map<Double, RowKey> m_allOrderedMembers;
 
 	private ArrayList<RowKey> m_memberRows;
+	
+	private Set<RowKey> m_clusterRows;
+	
+	private Set<RowKey> m_noiseRows;
 	
 	private int k = 0;
 
@@ -48,6 +56,8 @@ public class DENCLUEHyperCube {
 		m_clusterMembers = new LinkedHashMap<RowKey, double[]>();
 		m_noiseMembers = new LinkedHashMap<RowKey, double[]>();
 		m_clusterMembers.put(rowKey, featureVector);
+		m_clusterRows = new HashSet<RowKey>();
+		m_noiseRows = new HashSet<RowKey>();
 	}
 
 	public boolean addMember(final RowKey rowKey, final double[] featureVector) {
@@ -174,6 +184,14 @@ public class DENCLUEHyperCube {
 				return o2.compareTo(o1);
 			}
 	     });
+		m_allOrderedMembers = new TreeMap<Double, RowKey>(new Comparator<Double>() 
+	     {
+			@Override
+			public int compare(Double o1, Double o2) {
+				// TODO Auto-generated method stub
+				return o2.compareTo(o1);
+			}
+	     });
 		for(Map.Entry<RowKey, double[]> entry: m_clusterMembers.entrySet()) {
 			double euclDist = euclidianDistance(m_meanVector, entry.getValue());
 			RowKey currKey = entry.getKey();
@@ -182,19 +200,29 @@ public class DENCLUEHyperCube {
 //				m_noiseMembers.put(currKey, m_clusterMembers.remove(currKey));
 			}else if(euclDist <= k * sigma) {
 				m_nearX.put(euclDist, currKey);
+				m_clusterRows.add(currKey);
 			}
+			m_allOrderedMembers.put(euclDist, currKey);
 		}
 	}
 
-	public double localDensityFunction(final double[] featureVector, final double sigma) {
+	public double localDensityFunction(final double[] featureVector, final RowKey currRow, final double sigma) {
 		//consider ERROR(x) in future dev
 		double sum = 0.0;
 		for(Map.Entry<Double, RowKey> entry : m_nearX.entrySet()) {
-			double numerator = Math.pow(euclidianDistance(featureVector, m_clusterMembers.get(entry.getValue())),2);
+			double sigmaDistanceParameterCheck = euclidianDistance(featureVector, m_clusterMembers.get(entry.getValue()));
+			double numerator = Math.pow(sigmaDistanceParameterCheck,2);
 			//sigma ^ 2 may need to be swapped for variance
 			double denominator = 2 * (Math.pow(sigma, 2));
 			double partialSum = Math.E * (-1 * (numerator/denominator));
 			sum += partialSum;
+			// algorithm time saving step: if threshold distance sigma/2 is greater than distance between feature vector and
+			// any single near(x) set member, then the point gets cluster membership status
+			if(sigmaDistanceParameterCheck <= (sigma/2)) {
+				m_clusterRows.add(currRow);
+			}else if(!m_nearX.containsValue(currRow)) {
+				m_noiseRows.add(currRow);
+			}
 		}
 		return sum;
 	}
@@ -202,8 +230,8 @@ public class DENCLUEHyperCube {
 	public boolean findClusterDensityAttractor(final double xi, final double sigma) {
 		RowKey densityAttrKey;
 		double densityAttr = 0;
-		for(Map.Entry<Double, RowKey> entry : m_nearX.entrySet()) {
-			double localDensityX = localDensityFunction(m_clusterMembers.get(entry.getValue()), sigma);
+		for(Map.Entry<Double, RowKey> entry : m_allOrderedMembers.entrySet()) {
+			double localDensityX = localDensityFunction(m_clusterMembers.get(entry.getValue()), entry.getValue(), sigma);
 			if(localDensityX >= densityAttr) {
 				densityAttr = localDensityX;
 				densityAttrKey = entry.getValue();
@@ -215,6 +243,8 @@ public class DENCLUEHyperCube {
 		if(densityAttr >= xi) {
 			return true;
 		}else {
+			//set isNoise to true, all points now noise based on user chosen xi value (hyper-plane slice of Gaussian Density
+			//is taken "too high" in n-dimensional space
 			return false;
 		}
 	}
@@ -227,6 +257,19 @@ public class DENCLUEHyperCube {
 		}
 		double finalValue = Math.sqrt(currSum);
 		return finalValue;
+	}
+	
+	public boolean clusterHyperCube(final double sigma, final double xi){
+		createNearXSet(sigma);
+		return findClusterDensityAttractor(xi, sigma);
+	}
+	
+	public Set<RowKey> getClusterRows (){
+		return m_clusterRows;
+	}
+	
+	public Set<RowKey> getNoiseRows (){
+		return m_noiseRows;
 	}
 	
 	// TODO
