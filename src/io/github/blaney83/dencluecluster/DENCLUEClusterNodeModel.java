@@ -18,6 +18,8 @@ import org.knime.core.data.DataRow;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.data.DoubleValue;
 import org.knime.core.data.RowKey;
+import org.knime.core.data.container.CellFactory;
+import org.knime.core.data.container.ColumnRearranger;
 import org.knime.core.data.def.DefaultRow;
 import org.knime.core.data.def.DoubleCell;
 import org.knime.core.data.def.IntCell;
@@ -27,6 +29,7 @@ import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.defaultnodesettings.SettingsModelDoubleBounded;
 import org.knime.core.node.defaultnodesettings.SettingsModelIntegerBounded;
+import org.knime.core.node.streamable.BufferedDataTableRowOutput;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.ExecutionMonitor;
 import org.knime.core.node.InvalidSettingsException;
@@ -191,7 +194,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 							+ "re-execute this node.");
 		}
 
-		//Complexity Csp * Cp; Csp << Cp
+		// Complexity Csp * Cp; Csp << Cp
 		for (DENCLUEHyperCube cube : denseCubes) {
 			for (DENCLUEHyperCube sparseCube : allCubes) {
 				if (!cube.equals(sparseCube)) {
@@ -203,50 +206,55 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 				}
 			}
 		}
-	
-		//this new btree will hold all clusters and old btree after loop will be noise cluster holding only sparse noise cubes
+
+		// this new btree will hold all clusters and old btree after loop will be noise
+		// cluster holding only sparse noise cubes
 		int clusterFactor = (int) ((denseCubes.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
 		DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube> clusterTree = new DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube>(
 				clusterFactor);
-		
-		//consolidating cubes based on their neighbors. Deleting old cubes as they are merged and checking for partially merged
+
+		// consolidating cubes based on their neighbors. Deleting old cubes as they are
+		// merged and checking for partially merged
 		// super-hyper cubes
-		// getNeighborCells NOT CORRECT COLLECTION (need to add fnality to store neighbors)
+		// getNeighborCells NOT CORRECT COLLECTION (need to add fnality to store
+		// neighbors)
 		for (DENCLUEHyperCube cube : denseCubes) {
-			for(DENCLUEIndexKey indexKey : cube.getNeighborCells()) {
+			for (DENCLUEIndexKey indexKey : cube.getNeighborCells()) {
 				DENCLUEHyperCube mergingCube = bTree.search(indexKey);
 				DENCLUEHyperCube potentialSuperCube = clusterTree.search(indexKey);
-				if(mergingCube != null) {
+				if (mergingCube != null) {
 					cube.addNeighbor(mergingCube);
-					//b-tree now becomes home of noise cluster members
+					// b-tree now becomes home of noise cluster members
 					bTree.delete(indexKey);
-					//prune lists of dense cubes to match with merged cubes
-					if(denseCubes.contains(mergingCube)) {
+					// prune lists of dense cubes to match with merged cubes
+					if (denseCubes.contains(mergingCube)) {
 						denseCubes.remove(mergingCube);
 						denseCubeKeys.remove(indexKey);
 					}
-				}else if(potentialSuperCube != null) {
+				} else if (potentialSuperCube != null) {
 					cube.addNeighbor(potentialSuperCube);
-					//prevent duplicate, already merged cubes from existing in clusterTree
+					// prevent duplicate, already merged cubes from existing in clusterTree
 					clusterTree.delete(indexKey);
-					//prune lists of dense cubes to match with merged cubes
-					if(denseCubes.contains(potentialSuperCube)) {
+					// prune lists of dense cubes to match with merged cubes
+					if (denseCubes.contains(potentialSuperCube)) {
 						denseCubes.remove(potentialSuperCube);
 						denseCubeKeys.remove(indexKey);
 					}
 				}
-				//need to remove dense cubes that are merged with another dense cube from denseCube list
+				// need to remove dense cubes that are merged with another dense cube from
+				// denseCube list
 			}
-			//b-tree now becomes home of noise cluster members
+			// b-tree now becomes home of noise cluster members
 			bTree.delete(cube.getCubeKey());
 			clusterTree.insert(cube.getCubeKey(), cube);
 		}
-		
-		// in theory at this point, we have merged supercubes and sporadic noise cubes in two separate b+ search trees and
+
+		// in theory at this point, we have merged supercubes and sporadic noise cubes
+		// in two separate b+ search trees and
 		// part 1 is complete...
 
 		// TODO PART1
-		
+
 		// possibly create class IndexedKey implementing Comparable to check for matches
 		// to the key- DONE
 		// the first .equals check could be if sum1 != sum2 return false to speed
@@ -255,52 +263,83 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// mis-match- ACHIEVED WITH POINT ONE
 		// this could extend the ability of the node to handle dimensionality > 20 as in
 		// higher- ACHIEVED WITH POINT ONE
-		// dimensions the joined integer value of indicies would exceed Integer.MAX- AVOIDED
-		
+		// dimensions the joined integer value of indicies would exceed Integer.MAX-
+		// AVOIDED
+
 		// combine iterations where possible to improve performance
-		
+
 		// may need to change cube collections to sets
-		
+
 		// j-unit tests for part 1
 
 		// Step 2
-		
+
 		// consider all highly populated cube + their connected cubes exist as:
-		// C_sp(highly pop. hypercubes) or c(h-cubes) in C_p (total cubes) such that there exists c_s (a cluster) as
+		// C_sp(highly pop. hypercubes) or c(h-cubes) in C_p (total cubes) such that
+		// there exists c_s (a cluster) as
 		// an element of C_sp and there exists a connection (c_s, c)
-		
+
 		ArrayList<Set<RowKey>> clusters = new ArrayList<Set<RowKey>>();
 		Set<RowKey> noise = new HashSet<RowKey>();
-		
-		for(DENCLUEIndexKey key : denseCubeKeys) {
+
+		for (DENCLUEIndexKey key : denseCubeKeys) {
 			DENCLUEHyperCube joinedCube = clusterTree.search(key);
-			// 2.1- create set near(x) | d(mean(c),x^i) <= k*little sigma : k = 4 (arbt.) | near(x){ x^0.dist >> x^n.dist }
-			// 2.2- build local density fn f-hat^D_gauss(x) for cube c = gaussian density fn = sum of all infl. fns for near(x)
-			// as sum(e*(-((d(x^i,x^(i+1)))^2/(2(littleSigma^2))))) for near(x) feature vectors (x^i) in super-hypercube C
+			// 2.1- create set near(x) | d(mean(c),x^i) <= k*little sigma : k = 4 (arbt.) |
+			// near(x){ x^0.dist >> x^n.dist }
+			// 2.2- build local density fn f-hat^D_gauss(x) for cube c = gaussian density fn
+			// = sum of all infl. fns for near(x)
+			// as sum(e*(-((d(x^i,x^(i+1)))^2/(2(littleSigma^2))))) for near(x) feature
+			// vectors (x^i) in super-hypercube C
 			// 2.3- gradient hill-climbing
-			// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C while(f-hat(x^i+1)>=f-hat(x^i))
+			// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C
+			// while(f-hat(x^i+1)>=f-hat(x^i))
 			// if(f-hat(x^i+1)-f-hat(x^i)<= (littleSigma/2) add x^i to set{cluster(x*)}
 			boolean result = joinedCube.clusterHyperCube(m_sigmaValue.getDoubleValue(), m_xiValue.getDoubleValue());
-			if(result) {
+			if (result) {
 				clusters.add(joinedCube.getClusterRows());
 				noise.addAll(joinedCube.getNoiseRows());
-			}else {
-				//default add all members to noise (xi value chosen improperly by user, or no clusters exist)
+			} else {
+				// default add all members to noise (xi value chosen improperly by user, or no
+				// clusters exist)
 				noise.addAll(joinedCube.getMemberRows());
 			}
 		}
-		
-		for(DENCLUEIndexKey cubeKey : allCubeKeys) {
+
+		for (DENCLUEIndexKey cubeKey : allCubeKeys) {
 			DENCLUEHyperCube noiseCube = bTree.search(cubeKey);
-			if(noiseCube != null) {
+			if (noiseCube != null) {
 				noise.addAll(noiseCube.getMemberRows());
 			}
 		}
 		// Step 3
-		
-		// Assign Clusters and return qualified table
 
-		// for x*, create model and export at out-port 2
+		// Assign Clusters and return qualified table
+		CellFactory clusterColumnCellFactory = new DENCLUECellFactory(createClusterColumnSpec(), clusters, noise);
+		ColumnRearranger outputDataTable = new ColumnRearranger(inData[IN_PORT].getDataTableSpec());
+		outputDataTable.append(clusterColumnCellFactory);
+		BufferedDataTable bufferedDataTable = exec.createColumnRearrangeTable(inData[IN_PORT], outputDataTable, exec);
+		// CURRENT: Cluster Membership Totals
+		// FUTURE: for x*, create model and export at out-port 2
+		BufferedDataContainer container = exec.createDataContainer(createSummaryTableSpec());
+
+		// add arbitrary number of rows to the container
+		DataRow firstRow = new DefaultRow(new RowKey("Noise"),
+				new DataCell[] { new IntCell(noise.size())});
+		container.addRowToTable(firstRow);
+
+		int i = 0;
+		for(Set<RowKey> clusterSet : clusters) {
+			DataRow newRow = new DefaultRow(new RowKey("Cluster_"+i), 
+					new DataCell[] { new IntCell(clusterSet.size())});
+			container.addRowToTable(newRow);
+			i++;
+		}
+
+		// finally close the container and get the result table.
+		container.close();
+		BufferedDataTable bufferedSummaryTable = container.getTable();
+
+		return new BufferedDataTable[] { bufferedDataTable, bufferedSummaryTable };
 	}
 
 	@Override
@@ -347,9 +386,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		DataTableSpec outputSpec = new DataTableSpec(inSpecs[IN_PORT], appendSpec);
 
 		// cluster summary table output spec
-		DataColumnSpec summaryColSpec = createSummaryColumnSpec();
-		DataTableSpec summaryTableSpec = new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME,
-				summaryColSpec);
+		DataTableSpec summaryTableSpec = createSummaryTableSpec();
 
 		// return new data table with cluster column and summary table specs
 		return new DataTableSpec[] { outputSpec, summaryTableSpec };
@@ -360,11 +397,16 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
 	}
-
+	
 	private DataColumnSpec createSummaryColumnSpec() {
 		DataColumnSpecCreator newColSpecCreator = new DataColumnSpecCreator("Count", IntCell.TYPE);
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
+	}
+	
+	private DataTableSpec createSummaryTableSpec() {
+		return new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME,
+				createSummaryColumnSpec());
 	}
 
 	@Override

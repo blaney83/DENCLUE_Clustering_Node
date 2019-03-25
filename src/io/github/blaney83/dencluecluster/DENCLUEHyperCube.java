@@ -197,7 +197,7 @@ public class DENCLUEHyperCube {
 			RowKey currKey = entry.getKey();
 			if(euclDist > k * sigma) {
 				//I believe the members aren't disqualified yet based on d(mean(c), x)
-//				m_noiseMembers.put(currKey, m_clusterMembers.remove(currKey));
+				//m_noiseMembers.put(currKey, m_clusterMembers.remove(currKey));
 			}else if(euclDist <= k * sigma) {
 				m_nearX.put(euclDist, currKey);
 				m_clusterRows.add(currKey);
@@ -236,6 +236,7 @@ public class DENCLUEHyperCube {
 				densityAttr = localDensityX;
 				densityAttrKey = entry.getValue();
 			}else {
+				//all future points close to the path from x to x* may be added to cluster in future dev
 				break;
 			}
 		}
