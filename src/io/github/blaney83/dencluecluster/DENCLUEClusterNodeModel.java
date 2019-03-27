@@ -2,6 +2,7 @@ package io.github.blaney83.dencluecluster;
 
 import java.io.File;
 
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,12 +29,9 @@ import org.knime.core.node.BufferedDataContainer;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.defaultnodesettings.SettingsModelDoubleBounded;
-import org.knime.core.node.defaultnodesettings.SettingsModelIntegerBounded;
-import org.knime.core.node.streamable.BufferedDataTableRowOutput;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.ExecutionMonitor;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeModel;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
@@ -120,7 +118,6 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 				}
 				currentLowBound += (2 * m_sigmaValue.getDoubleValue());
 			}
-
 			m_hyperCubeBoundaries.put(entry.getKey(), m_columnBoundaries);
 			indexCount++;
 		}
@@ -128,7 +125,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// Bytes - 1
 		// may need further optimization later on
 		int branchingFactor = (int) ((dataTable.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
-
+		branchingFactor = 4;
 		// STORE CUBES OR KEYS (CHOOSE LATER BASED ON PERFORMANCE
 		// x subset of allCubes such that x has no set membership with denseCubes; x =
 		// sparsely populated cubes
@@ -196,6 +193,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 
 		// Complexity Csp * Cp; Csp << Cp
 		for (DENCLUEHyperCube cube : denseCubes) {
+			System.out.println(cube.getCubeKey().toString());
 			for (DENCLUEHyperCube sparseCube : allCubes) {
 				if (!cube.equals(sparseCube)) {
 					if (cube.isNeighbor(sparseCube)) {
@@ -411,17 +409,20 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 
 	@Override
 	protected void saveSettingsTo(final NodeSettingsWO settings) {
-
+		settings.addDouble(CFGKEY_SIGMA_VALUE, m_sigmaValue.getDoubleValue());
+		settings.addDouble(CFGKEY_XI_VALUE, m_xiValue.getDoubleValue());
 	}
 
 	@Override
 	protected void loadValidatedSettingsFrom(final NodeSettingsRO settings) throws InvalidSettingsException {
-
+		m_sigmaValue.setDoubleValue(settings.getDouble(CFGKEY_SIGMA_VALUE));
+		m_xiValue.setDoubleValue(settings.getDouble(CFGKEY_XI_VALUE));
 	}
 
 	@Override
 	protected void validateSettings(final NodeSettingsRO settings) throws InvalidSettingsException {
-
+		m_sigmaValue.validateSettings(settings);
+		m_xiValue.validateSettings(settings);
 	}
 
 	@Override
