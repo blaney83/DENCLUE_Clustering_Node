@@ -47,7 +47,6 @@ public class DENCLUEHyperCube {
 
 	public DENCLUEHyperCube(final DENCLUEIndexKey cubekey, final RowKey rowKey, final double[] featureVector,
 			final double xi) {
-//		public DENCLUEHyperCube(final int[] cubekey, final RowKey rowKey, final double[] featureVector) {
 		m_cubeKey = cubekey;
 		m_memberRows = new HashSet<RowKey>();
 		m_memberRows.add(rowKey);
@@ -236,7 +235,6 @@ public class DENCLUEHyperCube {
 			// algorithm time saving step: if threshold distance sigma/2 is greater than
 			// distance between feature vector and
 			// any single near(x) set member, then the point gets cluster membership status
-//			System.out.println("SIGMA " + sigmaDistanceParameterCheck);
 			if (sigmaDistanceParameterCheck <= (sigma / 2)) {
 				m_clusterRows.add(currRow);
 			} else if (!m_nearX.containsValue(currRow)) {
@@ -254,7 +252,6 @@ public class DENCLUEHyperCube {
 			System.out.println(entry.getValue().toString());
 			double localDensityX = localDensityFunction(m_clusterMembers.get(entry.getValue()), entry.getValue(),
 					sigma);
-//			System.out.println(localDensityX);
 			if (localDensityX >= densityAttr) {
 				densityAttr = localDensityX;
 				densityAttrKey = entry.getValue();
