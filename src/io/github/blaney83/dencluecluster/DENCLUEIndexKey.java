@@ -33,4 +33,13 @@ public class DENCLUEIndexKey implements Comparable<DENCLUEIndexKey>{
 		}
 		return 0;
 	}
+	
+	@Override
+	public String toString() {
+		String strValue = "";
+		for(int intVal : m_indexArray) {
+			strValue += String.valueOf(intVal);
+		}
+		return strValue;
+	}
 }

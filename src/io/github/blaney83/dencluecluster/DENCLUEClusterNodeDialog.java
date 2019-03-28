@@ -34,12 +34,12 @@ public class DENCLUEClusterNodeDialog extends DefaultNodeSettingsPane {
 		
 		addDialogComponent(new DialogComponentNumber(
 				new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_SIGMA_VALUE, DENCLUEClusterNodeModel.DEFAULT_SIGMA_VALUE, 0, Double.MAX_VALUE), 
-				"Select a \\&#x3C3; (point influence factor)", .03
+				"Select a sigma; (point influence factor)", .03
 		));
 		
 		addDialogComponent(new DialogComponentNumber(
 				new SettingsModelDoubleBounded(DENCLUEClusterNodeModel.CFGKEY_XI_VALUE, DENCLUEClusterNodeModel.DEFAULT_XI_VALUE, 0, Double.MAX_VALUE), 
-				"Select a \\&#x3BE; (min density level for density-attractor to be significant)", .03
+				"Select a xi; (min density level for density-attractor to be significant)", .03
 		));                    
     }
 }

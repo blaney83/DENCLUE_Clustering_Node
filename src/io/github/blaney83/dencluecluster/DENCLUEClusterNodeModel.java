@@ -2,10 +2,10 @@ package io.github.blaney83.dencluecluster;
 
 import java.io.File;
 
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -73,7 +73,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 	 */
 	protected DENCLUEClusterNodeModel() {
 
-		super(1, 1);
+		super(1, 2);
 
 		// export cluster models at 2nd out-port
 	}
@@ -126,7 +126,7 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// may need further optimization later on
 		int branchingFactor = (int) ((dataTable.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
 		branchingFactor = 4;
-		// STORE CUBES OR KEYS (CHOOSE LATER BASED ON PERFORMANCE
+		// STORE CUBES OR KEYS (CHOOSE LATER BASED ON PERFORMANCE)
 		// x subset of allCubes such that x has no set membership with denseCubes; x =
 		// sparsely populated cubes
 		// highly populated cube keys
@@ -144,41 +144,45 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// potentially expand to multi-threaded index searching for row feature vectors
 		// also, explore bulk loading for HyperCubes into B+ tree
 		for (DataRow row : dataTable) {
-//			int[] indexedKey = new int[m_hyperCubeBoundaries.size()];
 			DENCLUEIndexKey indexedKey = new DENCLUEIndexKey(m_hyperCubeBoundaries.size());
 			double[] featureVector = new double[m_hyperCubeBoundaries.size()];
 			int count = 0;
+			System.out.print(" " + row.getKey() + "  " + indexedKey.toString() + " COUNT " + count);
+
 			for (Map.Entry<Integer, double[][]> entry : m_hyperCubeBoundaries.entrySet()) {
 				double rowColVal = ((DoubleCell) row.getCell(entry.getKey())).getDoubleValue();
+				System.out.print(rowColVal + " , ");
 				featureVector[count] = rowColVal;
 				// binary search
 				int lowInd = 0;
 				int highInd = entry.getValue().length;
-
-				while (lowInd <= highInd) {
-
+				while (lowInd < highInd) {
 					int middleInd = (highInd + lowInd) / 2;
-
 					if (entry.getValue()[middleInd][0] > rowColVal) {
 						highInd = middleInd;
 					} else if (entry.getValue()[middleInd][1] <= rowColVal) {
-						lowInd = middleInd - 1;
+						lowInd = middleInd + 1;
 					} else {
-//						indexedKey[count] = middleInd;
 						indexedKey.setValue(count, middleInd);
+						break;
 					}
 				}
 				count++;
 			}
 			DENCLUEHyperCube rowMasterCube = bTree.search(indexedKey);
+			System.out.print(" " + row.getKey() + "  " + indexedKey.toString());
+			System.out.println();
 			if (rowMasterCube != null) {
+				System.out.println("OLD CUBE");
 				boolean isHighlyPopulated = rowMasterCube.addMember(row.getKey(), featureVector);
 				if (isHighlyPopulated) {
 					denseCubeKeys.add(indexedKey);
 					denseCubes.add(rowMasterCube);
 				}
 			} else {
-				rowMasterCube = new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector);
+				System.out.println("NEW CUBE");
+				rowMasterCube = new DENCLUEHyperCube(indexedKey, row.getKey(), featureVector,
+						m_xiValue.getDoubleValue());
 				bTree.insert(indexedKey, rowMasterCube);
 				allCubeKeys.add(indexedKey);
 				allCubes.add(rowMasterCube);
@@ -190,24 +194,22 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 					"The parameters used in your search classified all data as noise. Please re-evaluate your parameter choices and "
 							+ "re-execute this node.");
 		}
-
 		// Complexity Csp * Cp; Csp << Cp
 		for (DENCLUEHyperCube cube : denseCubes) {
-			System.out.println(cube.getCubeKey().toString());
 			for (DENCLUEHyperCube sparseCube : allCubes) {
 				if (!cube.equals(sparseCube)) {
 					if (cube.isNeighbor(sparseCube)) {
 						if (cube.isConnected(sparseCube, m_sigmaValue.getDoubleValue())) {
-							cube.addNeighbor(sparseCube);
+							cube.addNeighbor(sparseCube.getCubeKey());
 						}
 					}
 				}
 			}
 		}
-
 		// this new btree will hold all clusters and old btree after loop will be noise
 		// cluster holding only sparse noise cubes
-		int clusterFactor = (int) ((denseCubes.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
+//		int clusterFactor = (int) ((denseCubes.size()) / ((m_hyperCubeBoundaries.size() * 4) - 1));
+		int clusterFactor = 10;
 		DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube> clusterTree = new DENCLUEBPlusTree<DENCLUEIndexKey, DENCLUEHyperCube>(
 				clusterFactor);
 
@@ -216,26 +218,38 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		// super-hyper cubes
 		// getNeighborCells NOT CORRECT COLLECTION (need to add fnality to store
 		// neighbors)
-		for (DENCLUEHyperCube cube : denseCubes) {
-			for (DENCLUEIndexKey indexKey : cube.getNeighborCells()) {
+		Set<DENCLUEIndexKey> alreadyProcessedCubes = new HashSet<DENCLUEIndexKey>();
+
+		Iterator<DENCLUEHyperCube> iter = denseCubes.iterator();
+		while (iter.hasNext()) {
+			DENCLUEHyperCube cube = iter.next();
+			if (alreadyProcessedCubes.contains(cube.getCubeKey())) {
+				iter.remove();
+			}
+			for (DENCLUEIndexKey indexKey : cube.getNeighborCubes()) {
 				DENCLUEHyperCube mergingCube = bTree.search(indexKey);
 				DENCLUEHyperCube potentialSuperCube = clusterTree.search(indexKey);
-				if (mergingCube != null) {
-					cube.addNeighbor(mergingCube);
-					// b-tree now becomes home of noise cluster members
-					bTree.delete(indexKey);
-					// prune lists of dense cubes to match with merged cubes
-					if (denseCubes.contains(mergingCube)) {
-						denseCubes.remove(mergingCube);
-						denseCubeKeys.remove(indexKey);
-					}
-				} else if (potentialSuperCube != null) {
-					cube.addNeighbor(potentialSuperCube);
+				if (potentialSuperCube != null) {
+					cube.mergeNeighbor(potentialSuperCube);
 					// prevent duplicate, already merged cubes from existing in clusterTree
 					clusterTree.delete(indexKey);
 					// prune lists of dense cubes to match with merged cubes
 					if (denseCubes.contains(potentialSuperCube)) {
-						denseCubes.remove(potentialSuperCube);
+//						iter.remove();
+//						denseCubes.remove(potentialSuperCube);
+						alreadyProcessedCubes.add(potentialSuperCube.getCubeKey());
+						denseCubeKeys.remove(indexKey);
+					}
+				} else if (mergingCube != null) {
+					cube.mergeNeighbor(mergingCube);
+					// b-tree now becomes home of noise cluster members
+					// TEMP ON HOLD
+//					bTree.delete(indexKey);
+					// prune lists of dense cubes to match with merged cubes
+					if (denseCubes.contains(mergingCube)) {
+//						iter.remove();
+//						denseCubes.remove(mergingCube);
+						alreadyProcessedCubes.add(mergingCube.getCubeKey());
 						denseCubeKeys.remove(indexKey);
 					}
 				}
@@ -243,7 +257,8 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 				// denseCube list
 			}
 			// b-tree now becomes home of noise cluster members
-			bTree.delete(cube.getCubeKey());
+			// TEMP ON HOLD
+//			bTree.delete(cube.getCubeKey());
 			clusterTree.insert(cube.getCubeKey(), cube);
 		}
 
@@ -292,23 +307,26 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 			// for near(x){x^i...x^n}; x=x^0; x*(density attr)=x^i for cluster C
 			// while(f-hat(x^i+1)>=f-hat(x^i))
 			// if(f-hat(x^i+1)-f-hat(x^i)<= (littleSigma/2) add x^i to set{cluster(x*)}
-			boolean result = joinedCube.clusterHyperCube(m_sigmaValue.getDoubleValue(), m_xiValue.getDoubleValue());
-			if (result) {
-				clusters.add(joinedCube.getClusterRows());
-				noise.addAll(joinedCube.getNoiseRows());
-			} else {
-				// default add all members to noise (xi value chosen improperly by user, or no
-				// clusters exist)
-				noise.addAll(joinedCube.getMemberRows());
+			if (joinedCube != null) {
+				boolean result = joinedCube.clusterHyperCube(m_sigmaValue.getDoubleValue(), m_xiValue.getDoubleValue());
+				if (result) {
+					clusters.add(joinedCube.getClusterRows());
+					noise.addAll(joinedCube.getNoiseRows());
+				} else {
+					// default add all members to noise (xi value chosen improperly by user, or no
+					// clusters exist)
+					noise.addAll(joinedCube.getMemberRows());
+				}
 			}
 		}
-
-		for (DENCLUEIndexKey cubeKey : allCubeKeys) {
-			DENCLUEHyperCube noiseCube = bTree.search(cubeKey);
-			if (noiseCube != null) {
-				noise.addAll(noiseCube.getMemberRows());
-			}
-		}
+		//TEMP ON HOLD: due to problems removing cubes from btree, it does not currently serve as the noise
+		//cluster
+//		for (DENCLUEIndexKey cubeKey : allCubeKeys) {
+//			DENCLUEHyperCube noiseCube = bTree.search(cubeKey);
+//			if (noiseCube != null) {
+//				noise.addAll(noiseCube.getMemberRows());
+//			}
+//		}
 		// Step 3
 
 		// Assign Clusters and return qualified table
@@ -321,14 +339,13 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		BufferedDataContainer container = exec.createDataContainer(createSummaryTableSpec());
 
 		// add arbitrary number of rows to the container
-		DataRow firstRow = new DefaultRow(new RowKey("Noise"),
-				new DataCell[] { new IntCell(noise.size())});
+		DataRow firstRow = new DefaultRow(new RowKey("Noise"), new DataCell[] { new IntCell(noise.size()) });
 		container.addRowToTable(firstRow);
 
 		int i = 0;
-		for(Set<RowKey> clusterSet : clusters) {
-			DataRow newRow = new DefaultRow(new RowKey("Cluster_"+i), 
-					new DataCell[] { new IntCell(clusterSet.size())});
+		for (Set<RowKey> clusterSet : clusters) {
+			DataRow newRow = new DefaultRow(new RowKey("Cluster_" + i),
+					new DataCell[] { new IntCell(clusterSet.size()) });
 			container.addRowToTable(newRow);
 			i++;
 		}
@@ -395,16 +412,15 @@ public class DENCLUEClusterNodeModel extends NodeModel {
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
 	}
-	
+
 	private DataColumnSpec createSummaryColumnSpec() {
 		DataColumnSpecCreator newColSpecCreator = new DataColumnSpecCreator("Count", IntCell.TYPE);
 		DataColumnSpec newColSpec = newColSpecCreator.createSpec();
 		return newColSpec;
 	}
-	
+
 	private DataTableSpec createSummaryTableSpec() {
-		return new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME,
-				createSummaryColumnSpec());
+		return new DataTableSpec(DENCLUEClusterNodeModel.OUTPUT_SUMMARY_TABLE_NAME, createSummaryColumnSpec());
 	}
 
 	@Override
