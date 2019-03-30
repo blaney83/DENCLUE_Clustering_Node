@@ -1,15 +1,12 @@
 package io.github.blaney83.dencluecluster;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.knime.core.data.DataRow;
 import org.knime.core.data.RowKey;
 
 public class DENCLUEHyperCube {
@@ -41,7 +38,7 @@ public class DENCLUEHyperCube {
 
 	private Set<RowKey> m_noiseRows;
 
-	private int k = 0;
+	private int k = 4;
 
 	private double m_xi;
 
@@ -68,6 +65,7 @@ public class DENCLUEHyperCube {
 		updateLinearSum(featureVector);
 		m_clusterMembers.put(rowKey, featureVector);
 		System.out.println("GETTING FV " + rowKey.toString() + m_clusterMembers.get(rowKey));
+		System.out.println(m_numFeatureVectors);
 		// as points are added, as the points exceed a certain threshhold,
 		// then return the key of this cube to be stored in a highly populated key[]
 		// and change the isNoise to false
@@ -87,11 +85,6 @@ public class DENCLUEHyperCube {
 		m_memberRows.add(rowKey);
 		m_numFeatureVectors++;
 	}
-
-//	public void addMember(final DataRow row) {
-//		m_memberRows.add(row.getKey());
-//		
-//	}
 
 	public void updateLinearSum(final double[] otherLinearSum) {
 		for (int i = 0; i < m_linearSum.length; i++) {
@@ -210,6 +203,7 @@ public class DENCLUEHyperCube {
 		for (Map.Entry<RowKey, double[]> entry : m_clusterMembers.entrySet()) {
 			double euclDist = euclidianDistance(m_meanVector, entry.getValue());
 			RowKey currKey = entry.getKey();
+			System.out.println("NEAR X " + entry.getKey().toString() + " EUCL DIST " + euclDist + " K*SIG" + (k*sigma) + " " + (euclDist > k * sigma));
 			if (euclDist > k * sigma) {
 				// I believe the members aren't disqualified yet based on d(mean(c), x)
 				// m_noiseMembers.put(currKey, m_clusterMembers.remove(currKey));
@@ -236,13 +230,28 @@ public class DENCLUEHyperCube {
 			// distance between feature vector and
 			// any single near(x) set member, then the point gets cluster membership status
 			if (sigmaDistanceParameterCheck <= (sigma / 2)) {
+				System.out.println("CLUSTER ROW: " + currRow.getString() + " SIGMA/2 " + (sigma/2) + " PARAMCHECK " + sigmaDistanceParameterCheck);
 				m_clusterRows.add(currRow);
 			} else if (!m_nearX.containsValue(currRow)) {
+				System.out.println("NOISE ROW: " + currRow.getString() + " SIGMA/2 " + (sigma/2) + " PARAMCHECK " + sigmaDistanceParameterCheck);
+				m_noiseRows.add(currRow);
+			} else {
+				System.out.println("DEFAULT NOISE: " + currRow.getString() + " SIGMA/2 " + (sigma/2) + " PARAMCHECK " + sigmaDistanceParameterCheck);
 				m_noiseRows.add(currRow);
 			}
 		}
 		return sum;
 	}
+	
+	//ALTERNATE APPROACH- Don't merge cubes, just find neighbors
+	//as calculating near x for a single cube, still add d<sigma/2 points
+	//then find density attractor for each cube that is "highly populated"
+	//then for each neighbor of dense cubes and neighbors of dense cubes, if 
+	//density attr > density attr_1, density attr is cluster max density point
+	//if distance between density attr and density attr_1 is < 4*sigma, then clusters 
+	//are connected
+	//recursively process cubes efficiently (to prevent duplicate processing)
+	//then assign clusters
 
 	public boolean findClusterDensityAttractor(final double xi, final double sigma) {
 		RowKey densityAttrKey;
